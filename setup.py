@@ -27,7 +27,14 @@ setup(
     setup_requires=['setuptools_scm'],
     install_requires=[
         'Flask>=1.0',
+        'flask-marshmallow>=0.14',
     ],
+    extras_require={
+        'sqla': [
+            'Flask-SQLAlchemy>=2.0',
+            'marshmallow-sqlalchemy>=0.24',
+        ],
+    },
     classifiers=[
         'Environment :: Web Environment',
         'Intended Audience :: Developers',
