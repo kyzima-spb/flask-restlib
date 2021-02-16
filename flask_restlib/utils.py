@@ -1,7 +1,27 @@
 from importlib import import_module
+import re
 
 
-__all__ = ('import_string',)
+__all__ = (
+    'camel_to_list', 'camel_to_snake', 'snake_to_camel',
+    'import_string',
+)
+
+
+def camel_to_list(s, lower=False):
+    """Converts a camelcase string to a list."""
+    s = re.findall(r'([A-Z][a-z0-9]+)', s) or [s]
+    return [w.lower() for w in s] if lower else s
+
+
+def camel_to_snake(name):
+    """Converts a camelcase string to a snake case string."""
+    return '_'.join(camel_to_list(name, lower=True))
+
+
+def snake_to_camel(name):
+    """Converts a snake case string to a camelcase string."""
+    return ''.join(name.title().split('_'))
 
 
 def import_string(dotted_path):
