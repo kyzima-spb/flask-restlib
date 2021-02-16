@@ -85,6 +85,8 @@ class CreateViewMixin(CreateMixin):
 
 
 class DestroyViewMixin(DestroyMixin):
+    pk_names = ('id',)
+
     def delete(self, id):
         return self.destroy(id)
 
@@ -95,10 +97,14 @@ class ListViewMixin(ListMixin):
 
 
 class RetrieveViewMixin(RetrieveMixin):
+    pk_names = ('id',)
+
     def get(self, id):
         return self.retrieve(id)
 
 
 class UpdateViewMixin(UpdateMixin):
+    pk_names = ('id',)
+
     def put(self, id):
         return self.update(id)

@@ -1,4 +1,5 @@
 from abc import ABCMeta, abstractmethod
+from collections import OrderedDict
 
 from flask import request, abort, current_app
 from flask.views import MethodView
@@ -88,12 +89,14 @@ class ApiView(MethodView):
     Attributes:
         queryset: A reference to native queryset for retrieving resources.
         model_class: A reference to the class of the model.
+        pk_names: The names of the primary keys in the order in which they are used in the SQL query.
         resource_manager_class: A reference to the class of the resource manager.
         schema_class: A reference to the class of the schema to use for serialization.
     """
 
     queryset = None
     model_class = None
+    pk_names = ()
     resource_manager_class = None
     schema_class = None
 
@@ -126,6 +129,18 @@ class ApiView(MethodView):
         that is used to validate the input and serialize the output.
         """
         return self.get_schema_class()(*args, **kwargs)
+
+    def dispatch_request(self, *args, **kwargs):
+        if self.pk_names:
+            pk = OrderedDict()
+
+            for name in self.pk_names:
+                if name in kwargs:
+                    pk[name] = kwargs.pop(name)
+
+            kwargs['id'] = pk
+
+        return super().dispatch_request(*args, **kwargs)
 
     def get_model_class(self):
         """
@@ -187,5 +202,3 @@ class RetrieveView(mixins.RetrieveViewMixin, ApiView):
 
 class UpdateView(mixins.UpdateViewMixin, ApiView):
     pass
-
-
