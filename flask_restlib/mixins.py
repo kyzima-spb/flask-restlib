@@ -28,9 +28,8 @@ class CreateMixin:
         schema = self.create_schema()
         data = schema.load_from_request()
 
-        rm = self.create_resource_manager()
-        resource = rm.create(**data)
-        rm.save(resource)
+        with self.create_resource_manager() as rm:
+            resource = rm.create(self.get_model_class(), data)
 
         return schema.dump(resource), 201
 
@@ -39,9 +38,11 @@ class DestroyMixin:
     """A mixin for removing a resource from a collection."""
 
     def destroy(self, identifier):
-        rm = self.create_resource_manager()
-        resource = rm.get_or_404(identifier)
-        rm.delete(resource)
+        resource = self.get_or_404(identifier)
+
+        with self.create_resource_manager() as rm:
+            rm.delete(resource)
+
         return '', 204
 
 
@@ -59,7 +60,7 @@ class RetrieveMixin:
 
     def retrieve(self, identifier):
         return self.create_schema().dump(
-            self.create_resource_manager().get_or_404(identifier)
+            self.get_or_404(identifier)
         )
 
 
@@ -67,14 +68,14 @@ class UpdateMixin:
     """A mixin for editing a resource in a collection."""
 
     def update(self, identifier):
-        rm = self.create_resource_manager()
-        resource = rm.get_or_404(identifier)
+        resource = self.get_or_404(identifier)
 
         schema = self.create_schema()
+        schema.context['resource'] = resource
         data = schema.load_from_request()
 
-        rm.update(resource, **data)
-        rm.save(resource)
+        with self.create_resource_manager() as rm:
+            rm.update(resource, data)
 
         return schema.dump(resource)
 

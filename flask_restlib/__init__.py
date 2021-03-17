@@ -12,12 +12,14 @@ from flask_restlib.utils import import_string
 
 
 class RestLib:
-    __slots = ('_blueprints', 'ResourceManager',)
+    __slots__ = (
+        '_blueprints', '_factory', '_factory_callback', 'ma',
+    )
 
     def __init__(self, app=None):
         self._blueprints = []
-        self._resource_manager_callback = None
-        self._resource_manager_class = None
+        self._factory_callback = None
+        self._factory = None
 
         self.ma = Marshmallow()
 
@@ -25,31 +27,30 @@ class RestLib:
             self.init_app(app)
 
     @property
-    def ResourceManager(self):
-        if self._resource_manager_class is None:
-            callback = getattr(self, '_resource_manager_callback')
+    def factory(self):
+        if self._factory is None:
+            callback = getattr(self, '_factory_callback')
 
             if callback is None:
-                raise RuntimeError('Missing resource_manager_loader.')
+                raise RuntimeError('Missing factory_loader.')
 
-            self._resource_manager_class = callback()
+            self._factory = callback()()
+        return self._factory
 
-        return self._resource_manager_class
-
-    def resource_manager_loader(self, callback):
+    def factory_loader(self, callback):
         """This sets the callback for loading default resource manager."""
-        self._resource_manager_callback = callback
+        self._factory_callback = callback
         return callback
 
     def init_app(self, app):
         self.ma.init_app(app)
 
-        app.config.setdefault('RESTLIB_RESOURCE_MANAGER', None)
+        app.config.setdefault('RESTLIB_FACTORY', None)
 
-        resource_manager_class = app.config['RESTLIB_RESOURCE_MANAGER']
+        factory_class = app.config['RESTLIB_FACTORY']
 
-        if resource_manager_class is not None:
-            self.resource_manager_loader(lambda: import_string(resource_manager_class))
+        if factory_class is not None:
+            self.factory_loader(lambda: import_string(factory_class))
 
         app.extensions['restlib'] = self
 
@@ -67,6 +68,17 @@ class RestLib:
 
     def http_exception_handler(self, err):
         """Return JSON instead if Content-Type application/json for HTTP errors."""
+        # print(err.__dir__())
+        # print(err.data)
+
+        if err.code in (400, 422):
+            headers = err.data.get('headers', None)
+            messages = err.data.get("messages", ["Invalid request."])
+            if headers:
+                return {"errors": messages}, err.code, headers
+            else:
+                return {"errors": messages}, err.code
+
         if request.is_json:
             return ApiError(err.description, err.code).to_response()
         return err
