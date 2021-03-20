@@ -45,9 +45,12 @@ class RestLib:
     def init_app(self, app):
         self.ma.init_app(app)
 
-        app.config.setdefault('RESTLIB_FACTORY', None)
+        app.config.setdefault('RESTLIB_PAGINATION_ENABLED', True)
+        app.config.setdefault('RESTLIB_URL_PARAM_LIMIT', 'limit')
+        app.config.setdefault('RESTLIB_URL_PARAM_OFFSET', 'offset')
+        app.config.setdefault('RESTLIB_PAGINATION_LIMIT', 25)
 
-        factory_class = app.config['RESTLIB_FACTORY']
+        factory_class = app.config.setdefault('RESTLIB_FACTORY', None)
 
         if factory_class is not None:
             self.factory_loader(lambda: import_string(factory_class))

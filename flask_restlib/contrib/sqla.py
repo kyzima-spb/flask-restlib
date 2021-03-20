@@ -5,12 +5,12 @@ import sqlalchemy as sa
 from flask import current_app
 from flask_restlib import current_restlib
 from flask_restlib.core import (
-    AbstractQueryBuilder, AbstractResourceManager, AbstractFactory
+    AbstractQueryAdapter, AbstractResourceManager, AbstractFactory, AbstractFilter
 )
 from flask_restlib.mixins import RequestMixin
 
 
-class QueryBuilder(AbstractQueryBuilder):
+class QueryAdapter(AbstractQueryAdapter):
     __slots__ = ('session',)
 
     def __init__(self, base_query=None, *, session):
@@ -29,6 +29,10 @@ class QueryBuilder(AbstractQueryBuilder):
     def exists(self) -> bool:
         q = self.make_query().exists()
         return self.session.query(q).scalar()
+
+    def filter(self, filter_: AbstractFilter) -> QueryAdapter:
+        self._query = filter_.apply_to(self.make_query())
+        return self
 
     def get(self, identifier):
         return self.make_query().get(identifier)
@@ -81,8 +85,8 @@ class SQLAFactory(AbstractFactory):
 
         return ext.db.session
 
-    def create_query_builder(self, base_query=None):
-        return QueryBuilder(base_query, session=self.session)
+    def create_query_adapter(self, base_query=None) -> QueryAdapter:
+        return QueryAdapter(base_query, session=self.session)
 
     def create_resource_manager(self):
         return ResourceManager(self.session)
@@ -95,13 +99,3 @@ class SQLAFactory(AbstractFactory):
         bases = (RequestMixin, current_restlib.ma.SQLAlchemyAutoSchema)
 
         return type(name, bases, {'Meta': Meta})
-
-    # def get_resource_manager_class(self):
-    #     """
-    #     Returns a reference to the class of the resource manager.
-    #     """
-    #     return ResourceManager
-        # if self.resource_manager_class is None:
-        #     self.__class__.resource_manager_class = current_restlib.ResourceManager
-        #
-        # return self.resource_manager_class

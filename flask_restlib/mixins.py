@@ -1,4 +1,9 @@
-from flask import request, abort, jsonify
+from flask import request, abort, jsonify, current_app
+from webargs import fields
+from webargs import validate as validators
+from webargs.flaskparser import parser
+
+from flask_restlib.core import UrlQueryFilter
 
 
 __all__ = (
@@ -47,11 +52,57 @@ class DestroyMixin:
 
 
 class ListMixin:
-    """Mixin for getting all resources from the collection."""
+    """
+    Mixin for getting all resources from the collection.
+
+    Attributes:
+        filter_instance (UrlQueryFilter):
+            ...
+        limit_param_name (str):
+            The name of the URL parameter that specifies the number of collection items per page.
+        offset_param_name (str):
+            The name of the URL parameter that specifies the offset from the first item in the collection.
+        search_instance (UrlQueryFilter):
+            ...
+    """
+
+    filter_instance = None
+    limit_param_name = None
+    offset_param_name = None
+    search_instance = None
+
+    def _get_pagination(self):
+        limit_param_name = self.limit_param_name or current_app.config['RESTLIB_URL_PARAM_LIMIT']
+        offset_param_name = self.offset_param_name or current_app.config['RESTLIB_URL_PARAM_OFFSET']
+        pagination_schema = {
+            limit_param_name: fields.Int(
+                missing=current_app.config['RESTLIB_PAGINATION_LIMIT'],
+                validate=validators.Range(min=1)
+            ),
+            offset_param_name: fields.Int(
+                missing=0,
+                validate=validators.Range(min=0)
+            ),
+        }
+        pagination = parser.parse(pagination_schema, location='query')
+        return pagination
 
     def list(self):
+        q = self.create_queryset()
+
+        if self.filter_instance is not None:
+            q.filter(self.filter_instance)
+
+        if self.search_instance is not None:
+            q.filter(self.search_instance)
+
+        if current_app.config['RESTLIB_PAGINATION_ENABLED']:
+            pagination = self._get_pagination()
+            q.limit(pagination['limit'])
+            q.offset(pagination['offset'])
+
         return jsonify(
-            self.create_schema(many=True).dump(self.create_queryset())
+            self.create_schema(many=True).dump(q)
         )
 
 

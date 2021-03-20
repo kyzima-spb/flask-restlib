@@ -1,10 +1,84 @@
 from __future__ import annotations
 from abc import ABCMeta, abstractmethod
+import typing
 
 from flask import abort
+from marshmallow import Schema
+from webargs.flaskparser import parser
 
 
-class AbstractQueryBuilder(metaclass=ABCMeta):
+__all__ = (
+    'AbstractQueryAdapter',
+    'AbstractResourceManager',
+    'AbstractFactory',
+    'AbstractFilter',
+)
+
+
+class AbstractFilter(metaclass=ABCMeta):
+    """
+    An instance of the current class is used as a filter
+    for the results of a persistent storage query.
+    """
+
+    @abstractmethod
+    def apply_to(self, q):
+        """
+        Applies the current filter to the given queryset and returns the native queryset.
+
+        Arguments:
+            q: native queryset.
+        """
+
+
+class UrlQueryFilter(AbstractFilter):
+    """
+    The filter uses a URL query string and schema to collect and validate input data.
+
+    Filtering your results use a unique query parameter for each of your fields.
+
+    For example, to filter users based on their username:
+    GET /users?username=admin
+
+    If you would like to add full text search to your API,
+    use a q query parameter, for example:
+    GET /users?q=Admin
+    """
+
+    def __init__(self, filter_schema: typing.Union[type, Schema]):
+        """
+        Arguments:
+            filter_schema (type|Schema):
+                A reference to a schema class, or an instance for collecting and validating input data.
+        """
+        if isinstance(filter_schema, type):
+            filter_schema = filter_schema(partial=True)
+        else:
+            if not filter_schema.partial:
+                filter_schema.partial = True
+
+        self._filter_schema = filter_schema
+
+    @abstractmethod
+    def _do_apply(self, q, input_data: dict):
+        """
+        Applies the current filter to the given queryset and returns the native queryset.
+
+        Arguments:
+            q: native queryset.
+            input_data (dict): the input used for filtering.
+        """
+
+    def apply_to(self, q):
+        input_data = self.get_input_data()
+        return self._do_apply(q, input_data)
+
+    def get_input_data(self) -> dict:
+        """Returns the input used for filtering."""
+        return parser.parse(self._filter_schema, location='query')
+
+
+class AbstractQueryAdapter(metaclass=ABCMeta):
     __slots__ = (
         '_base_query', '_query',
         '_limit', '_offset',
@@ -41,6 +115,10 @@ class AbstractQueryBuilder(metaclass=ABCMeta):
         """Returns true if a resource with the specified search criteria exists in persistent storage."""
 
     @abstractmethod
+    def filter(self, filter_: AbstractFilter) -> AbstractQueryAdapter:
+        """Applies this filter to the current queryset."""
+
+    @abstractmethod
     def get(self, identifier):
         """Returns a resource based on the given identifier, or None if not found."""
 
@@ -53,7 +131,7 @@ class AbstractQueryBuilder(metaclass=ABCMeta):
 
         return resource
 
-    def limit(self, value: int) -> AbstractQueryBuilder:
+    def limit(self, value: int) -> AbstractQueryAdapter:
         """Applies a limit on the number of rows selected by the query."""
         self._limit = value
         return self
@@ -62,17 +140,17 @@ class AbstractQueryBuilder(metaclass=ABCMeta):
     def make_query(self):
         """Creates and returns a native query object."""
 
-    def offset(self, value: int) -> AbstractQueryBuilder:
+    def offset(self, value: int) -> AbstractQueryAdapter:
         """Applies the offset from which the query will select rows."""
         self._offset = value
         return self
 
-    def order_by(self, value) -> AbstractQueryBuilder:
+    def order_by(self, value) -> AbstractQueryAdapter:
         """Applies sorting by attribute."""
         self._order_by.add(value)
         return self
 
-    def select(self, entity, *entities) -> AbstractQueryBuilder:
+    def select(self, entity, *entities) -> AbstractQueryAdapter:
         """Using the passed list of models, creates a native query object."""
         if self._base_query is not None:
             raise RuntimeError(
@@ -146,7 +224,7 @@ class AbstractFactory(metaclass=ABCMeta):
     """
 
     @abstractmethod
-    def create_query_builder(self, base_query=None):
+    def create_query_adapter(self, base_query=None) -> AbstractQueryAdapter:
         """
         Creates and returns a queryset for retrieving resources from persistent storage.
         """
