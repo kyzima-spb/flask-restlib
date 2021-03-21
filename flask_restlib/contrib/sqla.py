@@ -3,11 +3,13 @@ import typing
 
 import sqlalchemy as sa
 from flask import current_app
+
 from flask_restlib import current_restlib
 from flask_restlib.core import (
     AbstractQueryAdapter, AbstractResourceManager, AbstractFactory, AbstractFilter
 )
 from flask_restlib.mixins import RequestMixin
+from flask_restlib.utils import strip_sorting_flag
 
 
 class QueryAdapter(AbstractQueryAdapter):
@@ -40,8 +42,8 @@ class QueryAdapter(AbstractQueryAdapter):
     def make_query(self):
         q = self._base_query or self._query
 
-        for column in self._order_by:
-            q = q.order_by(sa.text(column))
+        for columns in self._order_by:
+            q = q.order_by(*columns)
 
         if self._limit is not None:
             q = q.limit(self._limit)
@@ -50,6 +52,19 @@ class QueryAdapter(AbstractQueryAdapter):
             q = q.offset(self._offset)
 
         return q
+
+    def order_by(self, column, *columns) -> AbstractQueryAdapter:
+        args = []
+
+        for name in (column, *columns):
+            if isinstance(name, str):
+                order = sa.desc if name.startswith('-') else sa.asc
+                name = order(sa.text(
+                    strip_sorting_flag(name)
+                ))
+            args.append(name)
+
+        return super().order_by(*args)
 
 
 class ResourceManager(AbstractResourceManager):

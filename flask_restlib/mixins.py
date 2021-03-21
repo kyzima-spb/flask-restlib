@@ -4,6 +4,7 @@ from webargs import validate as validators
 from webargs.flaskparser import parser
 
 from flask_restlib.core import UrlQueryFilter
+from flask_restlib.utils import strip_sorting_flag
 
 
 __all__ = (
@@ -64,12 +65,18 @@ class ListMixin:
             The name of the URL parameter that specifies the offset from the first item in the collection.
         search_instance (UrlQueryFilter):
             ...
+        sort_param_name (str):
+            The name of the URL parameter that is used for sorting.
+        sorting_fields (tuple):
+            The names of the attributes of the model to be sorted.
     """
 
     filter_instance = None
     limit_param_name = None
     offset_param_name = None
     search_instance = None
+    sort_param_name = None
+    sorting_fields = ()
 
     def _get_pagination(self):
         limit_param_name = self.limit_param_name or current_app.config['RESTLIB_URL_PARAM_LIMIT']
@@ -84,8 +91,21 @@ class ListMixin:
                 validate=validators.Range(min=0)
             ),
         }
-        pagination = parser.parse(pagination_schema, location='query')
-        return pagination
+        return parser.parse(pagination_schema, location='query')
+
+    def _get_sort(self):
+        def validate(v):
+            validator = validators.OneOf(self.sorting_fields)
+            validator(strip_sorting_flag(v))
+
+        sort_param_name = self.sort_param_name or current_app.config['RESTLIB_URL_PARAM_SORT']
+        sort_schema = {
+            sort_param_name: fields.DelimitedList(
+                fields.String(validate=validate)
+            )
+        }
+
+        return parser.parse(sort_schema, location='query').get('sort')
 
     def list(self):
         q = self.create_queryset()
@@ -100,6 +120,11 @@ class ListMixin:
             pagination = self._get_pagination()
             q.limit(pagination['limit'])
             q.offset(pagination['offset'])
+
+        if current_app.config['RESTLIB_SORTING_ENABLED']:
+            sort = self._get_sort()
+            if sort:
+                q.order_by(*sort)
 
         return jsonify(
             self.create_schema(many=True).dump(q)

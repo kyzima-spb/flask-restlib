@@ -4,6 +4,7 @@ import re
 
 __all__ = (
     'camel_to_list', 'camel_to_snake', 'snake_to_camel',
+    'strip_sorting_flag',
     'import_string',
 )
 
@@ -44,3 +45,8 @@ def import_string(dotted_path):
         raise ImportError('Module "%s" does not define a "%s" attribute/class' % (
             module_path, class_name)
         ) from err
+
+
+def strip_sorting_flag(column_name: str) -> str:
+    """Removes the first character from the name if it is `+` or `-`. """
+    return re.sub(r'[-+]', '', column_name, count=1)
