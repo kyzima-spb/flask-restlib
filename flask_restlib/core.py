@@ -241,3 +241,14 @@ class AbstractFactory(metaclass=ABCMeta):
         Arguments:
             model_class: A reference to the model class that describes the REST resource.
         """
+
+    @abstractmethod
+    def get_schema_class(self):
+        """
+        Returns a reference to the base class of the schema
+        used in serialization and validation.
+        """
+
+    @abstractmethod
+    def get_schema_options_class(self):
+        """Returns a reference to the base schema options class."""

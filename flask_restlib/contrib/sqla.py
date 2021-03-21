@@ -3,6 +3,8 @@ import typing
 
 import sqlalchemy as sa
 from flask import current_app
+from flask_marshmallow.sqla import SQLAlchemyAutoSchema, SQLAlchemyAutoSchemaOpts
+from werkzeug.local import LocalProxy
 
 from flask_restlib import current_restlib
 from flask_restlib.core import (
@@ -10,6 +12,22 @@ from flask_restlib.core import (
 )
 from flask_restlib.mixins import RequestMixin
 from flask_restlib.utils import strip_sorting_flag
+
+
+class AutoSchemaOpts(SQLAlchemyAutoSchemaOpts):
+    def __init__(self, meta, ordered=False):
+        # if not hasattr(meta, 'sqla_session'):
+        #     meta.sqla_session = models.db.session
+
+        meta.dump_only = {
+            'id', 'created_at', 'updated_at', *getattr(meta, 'dump_only', ())
+        }
+
+        super().__init__(meta, ordered=ordered)
+
+
+class AutoSchema(RequestMixin, SQLAlchemyAutoSchema):
+    OPTIONS_CLASS = AutoSchemaOpts
 
 
 class QueryAdapter(AbstractQueryAdapter):
@@ -87,7 +105,7 @@ class ResourceManager(AbstractResourceManager):
 
 class SQLAFactory(AbstractFactory):
     def __init__(self, session=None):
-        self.session = session or self.get_session()
+        self.session = session or LocalProxy(lambda: self.get_session())
 
     def get_session(self):
         ext = current_app.extensions.get('sqlalchemy')
@@ -114,3 +132,9 @@ class SQLAFactory(AbstractFactory):
         bases = (RequestMixin, current_restlib.ma.SQLAlchemyAutoSchema)
 
         return type(name, bases, {'Meta': Meta})
+
+    def get_schema_class(self):
+        return AutoSchema
+
+    def get_schema_options_class(self):
+        return AutoSchemaOpts
