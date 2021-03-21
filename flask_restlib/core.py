@@ -93,7 +93,7 @@ class AbstractQueryAdapter(metaclass=ABCMeta):
         self._query = None
         self._limit = None
         self._offset = None
-        self._order_by = set()
+        self._order_by = []
 
     def __iter__(self):
         yield from self.all()
@@ -145,9 +145,9 @@ class AbstractQueryAdapter(metaclass=ABCMeta):
         self._offset = value
         return self
 
-    def order_by(self, value) -> AbstractQueryAdapter:
+    def order_by(self, column, *columns) -> AbstractQueryAdapter:
         """Applies sorting by attribute."""
-        self._order_by.add(value)
+        self._order_by.append((column, *columns))
         return self
 
     def select(self, entity, *entities) -> AbstractQueryAdapter:
