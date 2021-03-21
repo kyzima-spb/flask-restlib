@@ -49,6 +49,8 @@ class RestLib:
         app.config.setdefault('RESTLIB_URL_PARAM_LIMIT', 'limit')
         app.config.setdefault('RESTLIB_URL_PARAM_OFFSET', 'offset')
         app.config.setdefault('RESTLIB_PAGINATION_LIMIT', 25)
+        app.config.setdefault('RESTLIB_SORTING_ENABLED', True)
+        app.config.setdefault('RESTLIB_URL_PARAM_SORT', 'sort')
 
         factory_class = app.config.setdefault('RESTLIB_FACTORY', None)
 
