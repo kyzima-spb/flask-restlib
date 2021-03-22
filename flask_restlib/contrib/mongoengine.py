@@ -1,12 +1,57 @@
+from copy import deepcopy
+
+from marshmallow import Schema as _Schema, SchemaOpts as _SchemaOpts
+from mongoengine.errors import OperationError
+
 from flask_restlib.core import (
     AbstractQueryAdapter, AbstractResourceManager, AbstractFactory, AbstractFilter
 )
-from mongoengine.errors import OperationError
+from flask_restlib.mixins import RequestMixin
+
+
+class SchemaOpts(_SchemaOpts):
+    def __init__(self, meta, ordered=False):
+        meta.dump_only = {
+            'id', 'created_at', 'updated_at', *getattr(meta, 'dump_only', ())
+        }
+
+        super().__init__(meta, ordered=ordered)
+
+
+class Schema(RequestMixin, _Schema):
+    OPTIONS_CLASS = SchemaOpts
 
 
 class MongoQueryAdapter(AbstractQueryAdapter):
     def _do_select(self, *entities):
         return entities[0].objects
+
+    def _prepare_identifier(self, model_class, identifier):
+        """
+        Converts the original resource identifier to a Mongo-friendly format.
+
+        Arguments:
+            model_class: A reference to the model class.
+            identifier (dict): original identifier.
+
+        Returns:
+            The transformed identifier.
+        """
+        identifier = deepcopy(identifier)
+        id_field = model_class._meta['id_field']
+
+        if id_field in identifier:
+            pk = identifier.pop(id_field)
+        else:
+            field = getattr(model_class, id_field)
+            pk = {}
+            for n in field.document_type._fields:
+                pk[n] = identifier.pop(n)
+
+        if identifier:
+            raise RuntimeError('Invalid identifier.')
+
+        return pk
 
     def all(self) -> list:
         return self.make_query().all()
@@ -21,7 +66,11 @@ class MongoQueryAdapter(AbstractQueryAdapter):
         pass
 
     def get(self, identifier):
-        return self.make_query().with_id(identifier)
+        q = self.make_query()
+        model_class = q._document
+        return self.make_query().with_id(
+            self._prepare_identifier(model_class, identifier)
+        )
 
     def make_query(self):
         if self._base_query is None:
@@ -84,3 +133,9 @@ class MongoEngineFactory(AbstractFactory):
 
     def create_schema(self, model_class):
         pass
+
+    def get_schema_class(self):
+        return Schema
+
+    def get_schema_options_class(self):
+        return SchemaOpts
