@@ -37,8 +37,8 @@ class QueryAdapter(AbstractQueryAdapter):
         super().__init__(base_query)
         self.session = session
 
-    def _do_select(self, *entities):
-        return self.session.query(*entities)
+    def _do_select(self):
+        return self.session.query(self._model_class)
 
     def all(self) -> list:
         return self.make_query().all()
@@ -51,14 +51,14 @@ class QueryAdapter(AbstractQueryAdapter):
         return self.session.query(q).scalar()
 
     def filter(self, filter_: AbstractFilter) -> QueryAdapter:
-        self._query = filter_.apply_to(self.make_query())
+        self._base_query = filter_.apply_to(self.make_query())
         return self
 
     def get(self, identifier):
         return self.make_query().get(identifier)
 
     def make_query(self):
-        q = self._base_query or self._query
+        q = self._get_query()
 
         for columns in self._order_by:
             q = q.order_by(*columns)

@@ -80,7 +80,7 @@ class UrlQueryFilter(AbstractFilter):
 
 class AbstractQueryAdapter(metaclass=ABCMeta):
     __slots__ = (
-        '_base_query', '_query',
+        '_base_query', '_model_class',
         '_limit', '_offset',
         '_order_by',
     )
@@ -90,7 +90,7 @@ class AbstractQueryAdapter(metaclass=ABCMeta):
             base_query = base_query.make_query()
 
         self._base_query = base_query
-        self._query = None
+        self._model_class = None
         self._limit = None
         self._offset = None
         self._order_by = []
@@ -99,8 +99,14 @@ class AbstractQueryAdapter(metaclass=ABCMeta):
         yield from self.all()
 
     @abstractmethod
-    def _do_select(self, *entities):
+    def _do_select(self):
         """Creates and returns a native query object using the passed list of models."""
+
+    def _get_query(self):
+        """Returns the native queryset."""
+        if self._base_query is None:
+            return self._do_select()
+        return self._base_query
 
     @abstractmethod
     def all(self) -> list:
@@ -150,7 +156,7 @@ class AbstractQueryAdapter(metaclass=ABCMeta):
         self._order_by.append((column, *columns))
         return self
 
-    def select(self, entity, *entities) -> AbstractQueryAdapter:
+    def select(self, model_class) -> AbstractQueryAdapter:
         """Using the passed list of models, creates a native query object."""
         if self._base_query is not None:
             raise RuntimeError(
@@ -158,12 +164,12 @@ class AbstractQueryAdapter(metaclass=ABCMeta):
                 f' the `{self.__class__.__name__}.select()` method is not allowed.'
             )
 
-        if self._query is not None:
+        if self._model_class is not None:
             raise RuntimeError(
                 f'The `{self.__class__.__name__}.select()` method can only be used once. '
             )
 
-        self._query = self._do_select(entity, *entities)
+        self._model_class = model_class
 
         return self
 
