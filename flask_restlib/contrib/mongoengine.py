@@ -23,8 +23,8 @@ class Schema(RequestMixin, _Schema):
 
 
 class MongoQueryAdapter(AbstractQueryAdapter):
-    def _do_select(self, *entities):
-        return entities[0].objects
+    def _do_select(self):
+        return self._model_class.objects
 
     def _prepare_identifier(self, model_class, identifier):
         """
@@ -66,17 +66,12 @@ class MongoQueryAdapter(AbstractQueryAdapter):
         pass
 
     def get(self, identifier):
-        q = self.make_query()
-        model_class = q._document
         return self.make_query().with_id(
-            self._prepare_identifier(model_class, identifier)
+            self._prepare_identifier(self._model_class, identifier)
         )
 
     def make_query(self):
-        if self._base_query is None:
-            q = self._query
-        else:
-            q = self._base_query
+        q = self._get_query()
 
         if self._offset is None:
             start = 0
