@@ -1,4 +1,5 @@
 from __future__ import annotations
+from datetime import datetime
 from types import FunctionType
 
 from flask import current_app, request
@@ -6,7 +7,6 @@ from flask_marshmallow import Marshmallow
 from werkzeug.exceptions import HTTPException
 from werkzeug.local import LocalProxy
 
-from flask_restlib.exceptions import ApiError, ValidationError
 from flask_restlib.routing import ApiBlueprint
 from flask_restlib.utils import import_string
 
@@ -60,7 +60,6 @@ class RestLib:
         app.extensions['restlib'] = self
 
         app.register_error_handler(HTTPException, self.http_exception_handler)
-        app.register_error_handler(ValidationError, self.validation_exception_handler)
 
     def create_blueprint(self, *args, **kwargs) -> ApiBlueprint:
         bp = ApiBlueprint(*args, **kwargs)
@@ -73,25 +72,24 @@ class RestLib:
 
     def http_exception_handler(self, err):
         """Return JSON instead if Content-Type application/json for HTTP errors."""
-        # print(err.__dir__())
-        # print(err.data)
+        resp = {
+            'message': err.description,
+            'status': err.code,
+            'path': request.path,
+            'timestamp': datetime.utcnow().isoformat(),
+        }
 
-        if err.code in (400, 422):
-            headers = err.data.get('headers', None)
-            messages = err.data.get("messages", ["Invalid request."])
+        if err.code in (400, 422) and hasattr(err, 'data'): # webargs raise error
+            resp['detail'] = dict(zip(
+                ('location', 'errors'),
+                err.data.get('messages').popitem()
+            ))
+            headers = err.data.get('headers')
+
             if headers:
-                return {"errors": messages}, err.code, headers
-            else:
-                return {"errors": messages}, err.code
+                return resp, err.code, headers
 
-        if request.is_json:
-            return ApiError(err.description, err.code).to_response()
-        return err
-
-    def validation_exception_handler(self, err):
-        if request.is_json:
-            return ApiError(err.messages, 422).to_response()
-        return err
+        return resp, err.code
 
 
 current_restlib = LocalProxy(lambda: current_app.extensions['restlib'])

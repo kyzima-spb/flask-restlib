@@ -10,7 +10,6 @@ from flask_restlib import current_restlib
 from flask_restlib.core import (
     AbstractQueryAdapter, AbstractResourceManager, AbstractFactory, AbstractFilter
 )
-from flask_restlib.mixins import RequestMixin
 from flask_restlib.utils import strip_sorting_flag
 
 
@@ -26,7 +25,7 @@ class AutoSchemaOpts(SQLAlchemyAutoSchemaOpts):
         super().__init__(meta, ordered=ordered)
 
 
-class AutoSchema(RequestMixin, SQLAlchemyAutoSchema):
+class AutoSchema(SQLAlchemyAutoSchema):
     OPTIONS_CLASS = AutoSchemaOpts
 
 
@@ -129,7 +128,7 @@ class SQLAFactory(AbstractFactory):
             model = model_class
 
         name = '%sSchema' % model_class.__name__
-        bases = (RequestMixin, current_restlib.ma.SQLAlchemyAutoSchema)
+        bases = (self.get_schema_class(),)
 
         return type(name, bases, {'Meta': Meta})
 
