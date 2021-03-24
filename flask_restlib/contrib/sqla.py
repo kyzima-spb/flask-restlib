@@ -6,7 +6,6 @@ from flask import current_app
 from flask_marshmallow.sqla import SQLAlchemyAutoSchema, SQLAlchemyAutoSchemaOpts
 from werkzeug.local import LocalProxy
 
-from flask_restlib import current_restlib
 from flask_restlib.core import (
     AbstractQueryAdapter, AbstractResourceManager, AbstractFactory, AbstractFilter
 )

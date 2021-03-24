@@ -1,12 +1,13 @@
 from __future__ import annotations
 from datetime import datetime
-from types import FunctionType
+import typing
 
-from flask import current_app, request
+from flask import current_app, request, Flask
 from flask_marshmallow import Marshmallow
 from werkzeug.exceptions import HTTPException
 from werkzeug.local import LocalProxy
 
+from flask_restlib.core import AbstractFactory
 from flask_restlib.routing import ApiBlueprint
 from flask_restlib.utils import import_string
 
@@ -16,10 +17,15 @@ class RestLib:
         '_blueprints', '_factory', '_factory_callback', 'ma',
     )
 
-    def __init__(self, app=None):
+    def __init__(
+        self,
+        app: typing.Optional[Flask] = None,
+        *,
+        factory: typing.Optional[AbstractFactory] = None
+    ) -> None:
         self._blueprints = []
         self._factory_callback = None
-        self._factory = None
+        self._factory = factory
 
         self.ma = Marshmallow()
 
@@ -27,7 +33,7 @@ class RestLib:
             self.init_app(app)
 
     @property
-    def factory(self):
+    def factory(self) -> AbstractFactory:
         if self._factory is None:
             callback = getattr(self, '_factory_callback')
 
@@ -42,7 +48,7 @@ class RestLib:
         self._factory_callback = callback
         return callback
 
-    def init_app(self, app):
+    def init_app(self, app: Flask) -> None:
         self.ma.init_app(app)
 
         app.config.setdefault('RESTLIB_PAGINATION_ENABLED', True)
@@ -51,11 +57,6 @@ class RestLib:
         app.config.setdefault('RESTLIB_PAGINATION_LIMIT', 25)
         app.config.setdefault('RESTLIB_SORTING_ENABLED', True)
         app.config.setdefault('RESTLIB_URL_PARAM_SORT', 'sort')
-
-        factory_class = app.config.setdefault('RESTLIB_FACTORY', None)
-
-        if factory_class is not None:
-            self.factory_loader(lambda: import_string(factory_class))
 
         app.extensions['restlib'] = self
 
@@ -66,11 +67,11 @@ class RestLib:
         self._blueprints.append(bp)
         return bp
 
-    def register_blueprints(self, app):
+    def register_blueprints(self, app: Flask) -> None:
         for bp in self._blueprints:
             app.register_blueprint(bp)
 
-    def http_exception_handler(self, err):
+    def http_exception_handler(self, err: HTTPException):
         """Return JSON instead if Content-Type application/json for HTTP errors."""
         resp = {
             'message': err.description,
