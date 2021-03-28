@@ -2,11 +2,11 @@ from copy import deepcopy
 
 from marshmallow import Schema as _Schema, SchemaOpts as _SchemaOpts
 from mongoengine.errors import OperationError
+from mongoengine.queryset.base import BaseQuerySet
 
 from flask_restlib.core import (
     AbstractQueryAdapter, AbstractResourceManager, AbstractFactory, AbstractFilter
 )
-from flask_restlib.mixins import RequestMixin
 
 
 class SchemaOpts(_SchemaOpts):
@@ -18,14 +18,52 @@ class SchemaOpts(_SchemaOpts):
         super().__init__(meta, ordered=ordered)
 
 
-class Schema(RequestMixin, _Schema):
+class Schema(_Schema):
     OPTIONS_CLASS = SchemaOpts
 
 
 class MongoQueryAdapter(AbstractQueryAdapter):
-    def _do_select(self):
-        return self._model_class.objects
+    __slots__ = ()
 
+    def __init__(self, base_query):
+        if not isinstance(base_query, BaseQuerySet):
+            base_query = base_query.objects
+        super().__init__(base_query)
+
+    def all(self) -> list:
+        return self.make_query().all()
+
+    def count(self) -> int:
+        return self.make_query().count(with_limit_and_skip=True)
+
+    def exists(self) -> bool:
+        return bool(self.make_query().first())
+
+    def filter(self, filter_: AbstractFilter) -> AbstractQueryAdapter:
+        pass
+
+    def make_query(self):
+        q = self._base_query
+
+        if self._offset is None:
+            start = 0
+        else:
+            start = self._offset if self._offset > 0 else 0
+
+        if self._limit is not None:
+            count = start + self._limit
+        else:
+            count = None
+
+        q = q.__getitem__(slice(start, count))
+
+        for columns in self._order_by:
+            q = q.order_by(*columns)
+
+        return q
+
+
+class MongoResourceManager(AbstractResourceManager):
     def _prepare_identifier(self, model_class, identifier):
         """
         Converts the original resource identifier to a Mongo-friendly format.
@@ -53,45 +91,6 @@ class MongoQueryAdapter(AbstractQueryAdapter):
 
         return pk
 
-    def all(self) -> list:
-        return self.make_query().all()
-
-    def count(self) -> int:
-        return self.make_query().count(with_limit_and_skip=True)
-
-    def exists(self) -> bool:
-        return bool(self.make_query().first())
-
-    def filter(self, filter_: AbstractFilter) -> AbstractQueryAdapter:
-        pass
-
-    def get(self, identifier):
-        return self.make_query().with_id(
-            self._prepare_identifier(self._model_class, identifier)
-        )
-
-    def make_query(self):
-        q = self._get_query()
-
-        if self._offset is None:
-            start = 0
-        else:
-            start = self._offset if self._offset > 0 else 0
-
-        if self._limit is not None:
-            count = start + self._limit
-        else:
-            count = None
-
-        q = q.__getitem__(slice(start, count))
-
-        for columns in self._order_by:
-            q = q.order_by(*columns)
-
-        return q
-
-
-class MongoResourceManager(AbstractResourceManager):
     def commit(self):
         pass
 
@@ -112,6 +111,11 @@ class MongoResourceManager(AbstractResourceManager):
             resource.delete()
         except OperationError as err:
             raise RuntimeError(err) from err
+
+    def get(self, resource, identifier):
+        return resource.objects.with_id(
+            self._prepare_identifier(resource, identifier)
+        )
 
     def update(self, resource, attributes):
         if not resource.modify(**attributes):
