@@ -2,6 +2,7 @@ from __future__ import annotations
 import typing
 
 import sqlalchemy as sa
+from sqlalchemy.orm import Query
 from flask import current_app
 from flask_marshmallow.sqla import SQLAlchemyAutoSchema, SQLAlchemyAutoSchemaOpts
 from werkzeug.local import LocalProxy
@@ -31,12 +32,12 @@ class AutoSchema(SQLAlchemyAutoSchema):
 class QueryAdapter(AbstractQueryAdapter):
     __slots__ = ('session',)
 
-    def __init__(self, base_query=None, *, session):
+    def __init__(self, base_query, *, session):
+        if not isinstance(base_query, Query):
+            base_query = session.query(base_query)
+
         super().__init__(base_query)
         self.session = session
-
-    def _do_select(self):
-        return self.session.query(self._model_class)
 
     def all(self) -> list:
         return self.make_query().all()
@@ -56,7 +57,7 @@ class QueryAdapter(AbstractQueryAdapter):
         return self.make_query().get(identifier)
 
     def make_query(self):
-        q = self._get_query()
+        q = self._base_query
 
         for columns in self._order_by:
             q = q.order_by(*columns)
