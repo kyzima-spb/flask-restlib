@@ -80,12 +80,12 @@ class UrlQueryFilter(AbstractFilter):
 
 class AbstractQueryAdapter(metaclass=ABCMeta):
     __slots__ = (
-        '_base_query', '_model_class',
+        '_base_query',
         '_limit', '_offset',
         '_order_by',
     )
 
-    def __init__(self, base_query):
+    def __init__(self, base_query) -> typing.NoReturn:
         """
         Arguments:
             base_query: native queryset or a reference to the model class.
@@ -113,22 +113,10 @@ class AbstractQueryAdapter(metaclass=ABCMeta):
     def exists(self) -> bool:
         """Returns true if a resource with the specified search criteria exists in persistent storage."""
 
-    @abstractmethod
     def filter(self, filter_: AbstractFilter) -> AbstractQueryAdapter:
         """Applies this filter to the current queryset."""
-
-    @abstractmethod
-    def get(self, identifier):
-        """Returns a resource based on the given identifier, or None if not found."""
-
-    def get_or_404(self, identifier, description=None):
-        """Returns a resource based on the given identifier, throws an HTTP 404 error."""
-        resource = self.get(identifier)
-
-        if resource is None:
-            abort(404, description=description)
-
-        return resource
+        self._base_query = filter_.apply_to(self.make_query())
+        return self
 
     def limit(self, value: int) -> AbstractQueryAdapter:
         """Applies a limit on the number of rows selected by the query."""
@@ -165,7 +153,11 @@ class AbstractResourceManager(metaclass=ABCMeta):
         """Saves the changes to persistent storage."""
 
     @abstractmethod
-    def create(self, model_class, data):
+    def create(
+        self,
+        model_class: typing.Any,
+        data: typing.Union[dict, typing.List[dict]]
+    ) -> typing.Any:
         """
         Creates and returns a new instance of the resource filled with data.
 
@@ -175,7 +167,7 @@ class AbstractResourceManager(metaclass=ABCMeta):
         """
 
     @abstractmethod
-    def delete(self, resource):
+    def delete(self, resource: typing.Any) -> typing.NoReturn:
         """
         Removes the resource from the persistent storage.
 
@@ -183,9 +175,48 @@ class AbstractResourceManager(metaclass=ABCMeta):
             resource (object): The resource instance.
         """
 
-    def update(self, resource, attributes):
+    @abstractmethod
+    def get(
+        self,
+        model_class: type,
+        identifier: typing.Union[typing.Any, tuple, dict]
+    ) -> typing.Union[typing.Any, None]:
         """
-        Updates the resource with the values of the passed attributes.
+        Returns a resource based on the given identifier, or None if not found.
+
+        Arguments:
+            model_class (type): A reference to the model class that describes the REST resource.
+            identifier: A scalar, tuple, or dictionary representing the primary key.
+        """
+
+    def get_or_404(
+        self,
+        model_class: type,
+        identifier: typing.Union[typing.Any, tuple, dict],
+        description: typing.Optional[str] = None
+    ) -> typing.Any:
+        """
+        Returns a resource based on the given identifier, throws an HTTP 404 error.
+
+        Arguments:
+            model_class (type): A reference to the model class that describes the REST resource.
+            identifier: A scalar, tuple, or dictionary representing the primary key.
+            description (str):
+        """
+        resource = self.get(model_class, identifier)
+
+        if resource is None:
+            abort(404, description=description)
+
+        return resource
+
+    def populate_obj(
+        self,
+        resource: typing.Any,
+        attributes: dict
+    ) -> typing.NoReturn:
+        """
+        Populates the attributes of the given resource with data from the given attributes argument.
 
         Arguments:
             resource (object): The resource instance.
@@ -193,6 +224,20 @@ class AbstractResourceManager(metaclass=ABCMeta):
         """
         for attr, value in attributes.items():
             setattr(resource, attr, value)
+
+    @abstractmethod
+    def update(
+        self,
+        resource: typing.Any,
+        attributes: dict
+    ) -> typing.Any:
+        """
+        Updates the resource with the values of the passed attributes.
+
+        Arguments:
+            resource (object): The resource instance.
+            attributes (dict): Resource attributes with new values.
+        """
 
 
 class AbstractFactory(metaclass=ABCMeta):
