@@ -8,7 +8,6 @@ from flask_restlib.utils import strip_sorting_flag
 
 
 __all__ = (
-    'RequestMixin',
     'CreateMixin', 'CreateViewMixin',
     'DestroyMixin', 'DestroyViewMixin',
     'ListMixin', 'ListViewMixin',
@@ -17,22 +16,12 @@ __all__ = (
 )
 
 
-class RequestMixin:
-    """The mixin allows you to automatically fetch data from the request object."""
-
-    def load_from_request(self, **kwargs):
-        """Returns a validated JSON document retrieved from the request object."""
-        if request.json is None:
-            abort(400, 'Invalid input')
-        return self.load(request.json, **kwargs)
-
-
 class CreateMixin:
     """A mixin to add a new resource to the collection."""
 
     def create(self):
         schema = self.create_schema()
-        data = schema.load_from_request()
+        data = parser.parse(schema, location='json_or_form')
 
         with self.create_resource_manager() as rm:
             resource = rm.create(self.get_model_class(), data)
@@ -148,7 +137,7 @@ class UpdateMixin:
 
         schema = self.create_schema()
         schema.context['resource'] = resource
-        data = schema.load_from_request()
+        data = parser.parse(schema, location='json_or_form')
 
         with self.create_resource_manager() as rm:
             rm.update(resource, data)

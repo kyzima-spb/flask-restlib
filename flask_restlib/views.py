@@ -46,9 +46,7 @@ class ApiView(MethodView):
         if self.queryset is not None:
             queryset = factory.create_query_adapter(self.queryset)
         else:
-            queryset = factory.create_query_adapter().select(
-                self.get_model_class()
-            )
+            queryset = factory.create_query_adapter(self.get_model_class())
 
         return queryset
 
@@ -88,7 +86,7 @@ class ApiView(MethodView):
 
     def get_or_404(self, identifier, description=None, model_class=None):
         """Returns a resource based on the given identifier, throws an HTTP 404 error."""
-        q = self.get_factory().create_query_adapter().select(
+        q = self.get_factory().create_query_adapter(
             model_class or self.get_model_class()
         )
         return q.get_or_404(identifier, description)

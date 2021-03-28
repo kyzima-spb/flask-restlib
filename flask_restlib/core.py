@@ -85,28 +85,21 @@ class AbstractQueryAdapter(metaclass=ABCMeta):
         '_order_by',
     )
 
-    def __init__(self, base_query=None):
+    def __init__(self, base_query):
+        """
+        Arguments:
+            base_query: native queryset or a reference to the model class.
+        """
         if isinstance(base_query, self.__class__):
             base_query = base_query.make_query()
 
         self._base_query = base_query
-        self._model_class = None
         self._limit = None
         self._offset = None
         self._order_by = []
 
     def __iter__(self):
         yield from self.all()
-
-    @abstractmethod
-    def _do_select(self):
-        """Creates and returns a native query object using the passed list of models."""
-
-    def _get_query(self):
-        """Returns the native queryset."""
-        if self._base_query is None:
-            return self._do_select()
-        return self._base_query
 
     @abstractmethod
     def all(self) -> list:
@@ -154,23 +147,6 @@ class AbstractQueryAdapter(metaclass=ABCMeta):
     def order_by(self, column, *columns) -> AbstractQueryAdapter:
         """Applies sorting by attribute."""
         self._order_by.append((column, *columns))
-        return self
-
-    def select(self, model_class) -> AbstractQueryAdapter:
-        """Using the passed list of models, creates a native query object."""
-        if self._base_query is not None:
-            raise RuntimeError(
-                'If the constructor uses a basic query,'
-                f' the `{self.__class__.__name__}.select()` method is not allowed.'
-            )
-
-        if self._model_class is not None:
-            raise RuntimeError(
-                f'The `{self.__class__.__name__}.select()` method can only be used once. '
-            )
-
-        self._model_class = model_class
-
         return self
 
 

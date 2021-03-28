@@ -2,15 +2,14 @@ from __future__ import annotations
 import typing
 
 import sqlalchemy as sa
+from sqlalchemy.orm import Query
 from flask import current_app
 from flask_marshmallow.sqla import SQLAlchemyAutoSchema, SQLAlchemyAutoSchemaOpts
 from werkzeug.local import LocalProxy
 
-from flask_restlib import current_restlib
 from flask_restlib.core import (
     AbstractQueryAdapter, AbstractResourceManager, AbstractFactory, AbstractFilter
 )
-from flask_restlib.mixins import RequestMixin
 from flask_restlib.utils import strip_sorting_flag
 
 
@@ -26,19 +25,19 @@ class AutoSchemaOpts(SQLAlchemyAutoSchemaOpts):
         super().__init__(meta, ordered=ordered)
 
 
-class AutoSchema(RequestMixin, SQLAlchemyAutoSchema):
+class AutoSchema(SQLAlchemyAutoSchema):
     OPTIONS_CLASS = AutoSchemaOpts
 
 
 class QueryAdapter(AbstractQueryAdapter):
     __slots__ = ('session',)
 
-    def __init__(self, base_query=None, *, session):
+    def __init__(self, base_query, *, session):
+        if not isinstance(base_query, Query):
+            base_query = session.query(base_query)
+
         super().__init__(base_query)
         self.session = session
-
-    def _do_select(self):
-        return self.session.query(self._model_class)
 
     def all(self) -> list:
         return self.make_query().all()
@@ -58,7 +57,7 @@ class QueryAdapter(AbstractQueryAdapter):
         return self.make_query().get(identifier)
 
     def make_query(self):
-        q = self._get_query()
+        q = self._base_query
 
         for columns in self._order_by:
             q = q.order_by(*columns)
@@ -129,7 +128,7 @@ class SQLAFactory(AbstractFactory):
             model = model_class
 
         name = '%sSchema' % model_class.__name__
-        bases = (RequestMixin, current_restlib.ma.SQLAlchemyAutoSchema)
+        bases = (self.get_schema_class(),)
 
         return type(name, bases, {'Meta': Meta})
 
