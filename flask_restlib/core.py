@@ -113,9 +113,10 @@ class AbstractQueryAdapter(metaclass=ABCMeta):
     def exists(self) -> bool:
         """Returns true if a resource with the specified search criteria exists in persistent storage."""
 
-    @abstractmethod
     def filter(self, filter_: AbstractFilter) -> AbstractQueryAdapter:
         """Applies this filter to the current queryset."""
+        self._base_query = filter_.apply_to(self.make_query())
+        return self
 
     def limit(self, value: int) -> AbstractQueryAdapter:
         """Applies a limit on the number of rows selected by the query."""
