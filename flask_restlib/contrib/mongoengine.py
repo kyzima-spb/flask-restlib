@@ -1,11 +1,13 @@
+from __future__ import annotations
 from copy import deepcopy
+import typing
 
 from marshmallow import Schema as _Schema, SchemaOpts as _SchemaOpts
 from mongoengine.errors import OperationError
 from mongoengine.queryset.base import BaseQuerySet
 
 from flask_restlib.core import (
-    AbstractQueryAdapter, AbstractResourceManager, AbstractFactory, AbstractFilter
+    AbstractQueryAdapter, AbstractResourceManager, AbstractFactory
 )
 
 
@@ -38,9 +40,6 @@ class MongoQueryAdapter(AbstractQueryAdapter):
 
     def exists(self) -> bool:
         return bool(self.make_query().first())
-
-    def filter(self, filter_: AbstractFilter) -> AbstractQueryAdapter:
-        pass
 
     def make_query(self):
         q = self._base_query
@@ -94,7 +93,11 @@ class MongoResourceManager(AbstractResourceManager):
     def commit(self):
         pass
 
-    def create(self, model_class, data):
+    def create(
+        self,
+        model_class: typing.Any,
+        data: typing.Union[dict, typing.List[dict]]
+    ) -> typing.Any:
         try:
             if isinstance(data, dict):
                 result = model_class(**data).save(force_insert=True)
@@ -106,18 +109,26 @@ class MongoResourceManager(AbstractResourceManager):
         except OperationError as err:
             raise RuntimeError(err) from err
 
-    def delete(self, resource):
+    def delete(self, resource: typing.Any) -> typing.NoReturn:
         try:
             resource.delete()
         except OperationError as err:
             raise RuntimeError(err) from err
 
-    def get(self, resource, identifier):
-        return resource.objects.with_id(
-            self._prepare_identifier(resource, identifier)
+    def get(
+        self,
+        model_class: type,
+        identifier: typing.Union[typing.Any, tuple, dict]
+    ) -> typing.Union[typing.Any, None]:
+        return model_class.objects.with_id(
+            self._prepare_identifier(model_class, identifier)
         )
 
-    def update(self, resource, attributes):
+    def update(
+        self,
+        resource: typing.Any,
+        attributes: dict
+    ) -> typing.Any:
         if not resource.modify(**attributes):
             raise RuntimeError('Failed to update resource.')
         return resource
