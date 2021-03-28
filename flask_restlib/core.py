@@ -1,10 +1,15 @@
 from __future__ import annotations
 from abc import ABCMeta, abstractmethod
+import copy
 import typing
 
 from flask import abort
 from marshmallow import Schema
 from webargs.flaskparser import parser
+
+from flask_restlib.exceptions import (
+    NoResourcesFound, MultipleResourcesFound
+)
 
 
 __all__ = (
@@ -118,21 +123,65 @@ class AbstractQueryAdapter(metaclass=ABCMeta):
         self._base_query = filter_.apply_to(self.make_query())
         return self
 
+    def first(self) -> typing.Union[typing.Any, None]:
+        """
+        Return the first result of this query or None if the result doesn’t contain any row.
+        """
+        result = copy.copy(self).limit(1).all()
+        return result[0] if len(result) > 0 else None
+
     def limit(self, value: int) -> AbstractQueryAdapter:
         """Applies a limit on the number of rows selected by the query."""
         self._limit = value
         return self
 
     @abstractmethod
-    def make_query(self):
+    def make_query(self) -> typing.Any:
         """Creates and returns a native query object."""
+
+    def one(self) -> typing.Any:
+        """Return exactly one result or raise an exception."""
+        try:
+            result = self.one_or_none()
+        except MultipleResourcesFound as err:
+            raise MultipleResourcesFound(
+                f"Multiple rows were found for `{self.__class__.__name__}.one()`."
+            ) from err
+        else:
+            if result is None:
+                raise NoResourcesFound(
+                    f'No row was found for `{self.__class__.__name__}.one()`.'
+                )
+            return result
+
+    def one_or_none(self) -> typing.Union[typing.Any, None]:
+        """
+        Return at most one result or raise an exception.
+        Returns None if the query selects no rows.
+        """
+        result = copy.copy(self).limit(2).all()
+        found = len(result)
+
+        if found == 0:
+            return None
+
+        if found > 1:
+            raise MultipleResourcesFound(
+                f"Multiple rows were found for `{self.__class__.__name__}.one_or_none()`."
+            )
+
+        return result
 
     def offset(self, value: int) -> AbstractQueryAdapter:
         """Applies the offset from which the query will select rows."""
         self._offset = value
         return self
 
-    def order_by(self, column, *columns) -> AbstractQueryAdapter:
+    def order_by(
+        self,
+        column: str,
+        *columns: typing.Tuple[str]
+    ) -> AbstractQueryAdapter:
         """Applies sorting by attribute."""
         self._order_by.append((column, *columns))
         return self

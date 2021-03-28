@@ -1,17 +1,10 @@
-from marshmallow import ValidationError
+class RestlibError(Exception):
+    pass
 
 
-__all__ = (
-    'ApiError', 'ValidationError',
-)
+class MultipleResourcesFound(RestlibError):
+    pass
 
 
-class ApiError(Exception):
-    """Любая ошибка, возникшая при использовании API."""
-    def __init__(self, description, status=400):
-        self.description = description
-        self.status = status
-
-    def to_response(self):
-        """Возвращает ошибку в формате ответа."""
-        return {'message': self.description}, self.status
+class NoResourcesFound(RestlibError):
+    pass
