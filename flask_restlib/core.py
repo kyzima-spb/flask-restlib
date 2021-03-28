@@ -170,7 +170,7 @@ class AbstractQueryAdapter(metaclass=ABCMeta):
                 f"Multiple rows were found for `{self.__class__.__name__}.one_or_none()`."
             )
 
-        return result
+        return result[0]
 
     def offset(self, value: int) -> AbstractQueryAdapter:
         """Applies the offset from which the query will select rows."""
