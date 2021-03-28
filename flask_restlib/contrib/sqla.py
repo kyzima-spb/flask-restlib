@@ -84,14 +84,18 @@ class ResourceManager(AbstractResourceManager):
     def commit(self):
         self.session.commit()
 
-    def create(self, model_class, data):
+    def create(
+        self,
+        model_class: typing.Any,
+        data: typing.Union[dict, typing.List[dict]]
+    ) -> typing.Any:
         if isinstance(data, dict):
             resource = model_class(**data)
             self.session.add(resource)
             return resource
         self.session.bulk_insert_mappings(model_class, data)
 
-    def delete(self, resource):
+    def delete(self, resource: typing.Any) -> typing.NoReturn:
         self.session.delete(resource)
 
     def get(
@@ -100,6 +104,14 @@ class ResourceManager(AbstractResourceManager):
         identifier: typing.Union[typing.Any, tuple, dict]
     ) -> typing.Union[typing.Any, None]:
         return self.session.query(model_class).get(identifier)
+
+    def update(
+        self,
+        resource: typing.Any,
+        attributes: dict
+    ) -> typing.Any:
+        self.populate_obj(resource, attributes)
+        return resource
 
 
 class SQLAFactory(AbstractFactory):

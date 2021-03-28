@@ -153,7 +153,11 @@ class AbstractResourceManager(metaclass=ABCMeta):
         """Saves the changes to persistent storage."""
 
     @abstractmethod
-    def create(self, model_class, data):
+    def create(
+        self,
+        model_class: typing.Any,
+        data: typing.Union[dict, typing.List[dict]]
+    ) -> typing.Any:
         """
         Creates and returns a new instance of the resource filled with data.
 
@@ -163,7 +167,7 @@ class AbstractResourceManager(metaclass=ABCMeta):
         """
 
     @abstractmethod
-    def delete(self, resource):
+    def delete(self, resource: typing.Any) -> typing.NoReturn:
         """
         Removes the resource from the persistent storage.
 
@@ -206,9 +210,13 @@ class AbstractResourceManager(metaclass=ABCMeta):
 
         return resource
 
-    def update(self, resource, attributes):
+    def populate_obj(
+        self,
+        resource: typing.Any,
+        attributes: dict
+    ) -> typing.NoReturn:
         """
-        Updates the resource with the values of the passed attributes.
+        Populates the attributes of the given resource with data from the given attributes argument.
 
         Arguments:
             resource (object): The resource instance.
@@ -216,6 +224,20 @@ class AbstractResourceManager(metaclass=ABCMeta):
         """
         for attr, value in attributes.items():
             setattr(resource, attr, value)
+
+    @abstractmethod
+    def update(
+        self,
+        resource: typing.Any,
+        attributes: dict
+    ) -> typing.Any:
+        """
+        Updates the resource with the values of the passed attributes.
+
+        Arguments:
+            resource (object): The resource instance.
+            attributes (dict): Resource attributes with new values.
+        """
 
 
 class AbstractFactory(metaclass=ABCMeta):

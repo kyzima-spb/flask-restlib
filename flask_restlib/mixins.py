@@ -140,7 +140,7 @@ class UpdateMixin:
         data = parser.parse(schema, location='json_or_form')
 
         with self.create_resource_manager() as rm:
-            rm.update(resource, data)
+            resource = rm.update(resource, data)
 
         return schema.dump(resource)
 
