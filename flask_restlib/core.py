@@ -80,12 +80,12 @@ class UrlQueryFilter(AbstractFilter):
 
 class AbstractQueryAdapter(metaclass=ABCMeta):
     __slots__ = (
-        '_base_query', '_model_class',
+        '_base_query',
         '_limit', '_offset',
         '_order_by',
     )
 
-    def __init__(self, base_query):
+    def __init__(self, base_query) -> typing.NoReturn:
         """
         Arguments:
             base_query: native queryset or a reference to the model class.
@@ -116,19 +116,6 @@ class AbstractQueryAdapter(metaclass=ABCMeta):
     @abstractmethod
     def filter(self, filter_: AbstractFilter) -> AbstractQueryAdapter:
         """Applies this filter to the current queryset."""
-
-    @abstractmethod
-    def get(self, identifier):
-        """Returns a resource based on the given identifier, or None if not found."""
-
-    def get_or_404(self, identifier, description=None):
-        """Returns a resource based on the given identifier, throws an HTTP 404 error."""
-        resource = self.get(identifier)
-
-        if resource is None:
-            abort(404, description=description)
-
-        return resource
 
     def limit(self, value: int) -> AbstractQueryAdapter:
         """Applies a limit on the number of rows selected by the query."""
@@ -182,6 +169,41 @@ class AbstractResourceManager(metaclass=ABCMeta):
         Arguments:
             resource (object): The resource instance.
         """
+
+    @abstractmethod
+    def get(
+        self,
+        model_class: type,
+        identifier: typing.Union[typing.Any, tuple, dict]
+    ) -> typing.Union[typing.Any, None]:
+        """
+        Returns a resource based on the given identifier, or None if not found.
+
+        Arguments:
+            model_class (type): A reference to the model class that describes the REST resource.
+            identifier: A scalar, tuple, or dictionary representing the primary key.
+        """
+
+    def get_or_404(
+        self,
+        model_class: type,
+        identifier: typing.Union[typing.Any, tuple, dict],
+        description: typing.Optional[str] = None
+    ) -> typing.Any:
+        """
+        Returns a resource based on the given identifier, throws an HTTP 404 error.
+
+        Arguments:
+            model_class (type): A reference to the model class that describes the REST resource.
+            identifier: A scalar, tuple, or dictionary representing the primary key.
+            description (str):
+        """
+        resource = self.get(model_class, identifier)
+
+        if resource is None:
+            abort(404, description=description)
+
+        return resource
 
     def update(self, resource, attributes):
         """

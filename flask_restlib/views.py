@@ -86,10 +86,11 @@ class ApiView(MethodView):
 
     def get_or_404(self, identifier, description=None, model_class=None):
         """Returns a resource based on the given identifier, throws an HTTP 404 error."""
-        q = self.get_factory().create_query_adapter(
-            model_class or self.get_model_class()
+        return self.get_factory().create_resource_manager().get_or_404(
+            model_class or self.get_model_class(),
+            identifier,
+            description
         )
-        return q.get_or_404(identifier, description)
 
     def get_schema_class(self):
         """

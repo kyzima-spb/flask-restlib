@@ -53,9 +53,6 @@ class QueryAdapter(AbstractQueryAdapter):
         self._base_query = filter_.apply_to(self.make_query())
         return self
 
-    def get(self, identifier):
-        return self.make_query().get(identifier)
-
     def make_query(self):
         q = self._base_query
 
@@ -100,6 +97,13 @@ class ResourceManager(AbstractResourceManager):
 
     def delete(self, resource):
         self.session.delete(resource)
+
+    def get(
+        self,
+        model_class: type,
+        identifier: typing.Union[typing.Any, tuple, dict]
+    ) -> typing.Union[typing.Any, None]:
+        return self.session.query(model_class).get(identifier)
 
 
 class SQLAFactory(AbstractFactory):
