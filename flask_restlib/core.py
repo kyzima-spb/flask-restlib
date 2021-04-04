@@ -300,7 +300,7 @@ class AbstractFactory(metaclass=ABCMeta):
     """
 
     @abstractmethod
-    def create_query_adapter(self, base_query=None) -> AbstractQueryAdapter:
+    def create_query_adapter(self, base_query) -> AbstractQueryAdapter:
         """
         Creates and returns a queryset for retrieving resources from persistent storage.
         """

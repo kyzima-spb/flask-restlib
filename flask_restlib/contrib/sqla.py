@@ -129,7 +129,7 @@ class SQLAFactory(AbstractFactory):
 
         return ext.db.session
 
-    def create_query_adapter(self, base_query=None) -> QueryAdapter:
+    def create_query_adapter(self, base_query) -> QueryAdapter:
         return QueryAdapter(base_query, session=self.session)
 
     def create_resource_manager(self):
