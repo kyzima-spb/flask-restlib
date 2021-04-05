@@ -238,27 +238,6 @@ class AbstractResourceManager(metaclass=ABCMeta):
             identifier: A scalar, tuple, or dictionary representing the primary key.
         """
 
-    def get_or_404(
-        self,
-        model_class: type,
-        identifier: typing.Union[typing.Any, tuple, dict],
-        description: typing.Optional[str] = None
-    ) -> typing.Any:
-        """
-        Returns a resource based on the given identifier, throws an HTTP 404 error.
-
-        Arguments:
-            model_class (type): A reference to the model class that describes the REST resource.
-            identifier: A scalar, tuple, or dictionary representing the primary key.
-            description (str):
-        """
-        resource = self.get(model_class, identifier)
-
-        if resource is None:
-            abort(404, description=description)
-
-        return resource
-
     def populate_obj(
         self,
         resource: typing.Any,
