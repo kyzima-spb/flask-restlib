@@ -34,6 +34,9 @@ setup(
             'Flask-SQLAlchemy>=2.0',
             'marshmallow-sqlalchemy>=0.24',
         ],
+        'mongoengine': [
+            'mongoengine>=0.23',
+        ],
     },
     classifiers=[
         'Environment :: Web Environment',
