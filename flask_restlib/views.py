@@ -1,5 +1,8 @@
+from __future__ import annotations
 from collections import OrderedDict
+import typing
 
+from flask import abort
 from flask.views import MethodView
 
 from flask_restlib import current_restlib
@@ -20,15 +23,17 @@ class ApiView(MethodView):
     Attributes:
         factory_class (AbstractFactory): A reference to the class of the factory being used.
         queryset: A reference to native queryset for retrieving resources.
+        lookup_names (tuple):
+            Names of the fields to retrieve resource in persistent storage.
+            For example, names of primary keys in order in which they are used in SQL query.
         model_class: A reference to the class of the model.
-        pk_names (tuple): The names of the primary keys in the order in which they are used in the SQL query.
         schema_class: A reference to the class of the schema to use for serialization.
     """
 
     factory_class = None
     queryset = None
+    lookup_names = ()
     model_class = None
-    pk_names = ()
     schema_class = None
 
     def get_factory(self) -> AbstractFactory:
@@ -62,14 +67,14 @@ class ApiView(MethodView):
         return self.get_schema_class()(*args, **kwargs)
 
     def dispatch_request(self, *args, **kwargs):
-        if self.pk_names:
-            pk = OrderedDict()
+        if self.lookup_names:
+            lookup = OrderedDict()
 
-            for name in self.pk_names:
+            for name in self.lookup_names:
                 if name in kwargs:
-                    pk[name] = kwargs.pop(name)
+                    lookup[name] = kwargs.pop(name)
 
-            kwargs['id'] = pk
+            kwargs['id'] = lookup
 
         return super().dispatch_request(*args, **kwargs)
 
@@ -84,13 +89,28 @@ class ApiView(MethodView):
             )
         return self.model_class
 
-    def get_or_404(self, identifier, description=None, model_class=None):
-        """Returns a resource based on the given identifier, throws an HTTP 404 error."""
-        return self.get_factory().create_resource_manager().get_or_404(
-            model_class or self.get_model_class(),
-            identifier,
-            description
+    def get_or_404(
+            self,
+            identifier: typing.Union[typing.Any, tuple, dict],
+            description: typing.Optional[str] = None,
+            model_class: typing.Optional[typing.Any] = None
+    ) -> typing.Any:
+        """
+        Returns a resource based on the given identifier, throws an HTTP 404 error.
+
+        Arguments:
+            model_class (type): A reference to the model class that describes the REST resource.
+            identifier: A scalar, tuple, or dictionary representing the primary key.
+            description (str):
+        """
+        resource = self.get_factory().create_resource_manager().get(
+            model_class or self.get_model_class(), identifier
         )
+
+        if resource is None:
+            abort(404, description=description)
+
+        return resource
 
     def get_schema_class(self):
         """
