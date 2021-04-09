@@ -74,7 +74,8 @@ class RefreshTokenGrant(grants.RefreshTokenGrant):
                 .filter_by(refresh_token=refresh_token)
                 .one_or_none()
         )
-
+        # define is_refresh_token_valid by yourself
+        # usually, you should check if refresh token is expired and revoked
         if item and item.is_refresh_token_valid():
             return item
 
