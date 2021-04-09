@@ -12,7 +12,7 @@ from authlib.oauth2.rfc7009 import RevocationEndpoint
 from authlib.integrations.flask_oauth2 import (
     AuthorizationServer, ResourceProtector
 )
-from flask import Flask, Blueprint, request, render_template, current_app, abort, Response
+from flask import Flask, Blueprint, request, current_app, abort, Response
 from flask_useful.views import MethodView
 from flask_login import current_user, login_required
 import sqlalchemy as sa
@@ -32,6 +32,9 @@ class OAuth2Client(db.Model, OAuth2ClientMixin):
         sa.Integer, sa.ForeignKey('user.id', ondelete='CASCADE')
     )
     user = relationship('User')
+
+    def get_owner(self):
+        return self.user
 
 
 class OAuth2Token(db.Model, OAuth2TokenMixin):

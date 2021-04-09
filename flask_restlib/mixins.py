@@ -3,6 +3,7 @@ from webargs import fields
 from webargs import validate as validators
 from webargs.flaskparser import parser
 
+from flask_login import UserMixin as _UserMixin
 from flask_restlib.core import UrlQueryFilter
 from flask_restlib.utils import strip_sorting_flag
 
@@ -13,6 +14,7 @@ __all__ = (
     'ListMixin', 'ListViewMixin',
     'RetrieveMixin', 'RetrieveViewMixin',
     'UpdateMixin', 'UpdateViewMixin',
+    'UserMixin',
 )
 
 
@@ -143,6 +145,27 @@ class UpdateMixin:
             resource = rm.update(resource, data)
 
         return schema.dump(resource)
+
+
+class UserMixin(_UserMixin):
+    """A mixin for describing a user."""
+
+    def change_password(self, value):
+        """Changes the current password to passed."""
+        raise NotImplementedError
+
+    def check_password(self, password):
+        """Returns true if the password is valid, false otherwise. """
+        raise NotImplementedError
+
+    @classmethod
+    def find_by_username(cls, username):
+        """Returns the user with passed username, or None."""
+        raise NotImplementedError
+
+    def get_user_id(self):
+        """Returns user id, requires Authlib."""
+        return self.get_id()
 
 
 class CreateViewMixin(CreateMixin):

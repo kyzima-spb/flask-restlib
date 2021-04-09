@@ -123,6 +123,9 @@ class AbstractQueryAdapter(metaclass=ABCMeta):
         self._base_query = filter_.apply_to(self.make_query())
         return self
 
+    def filter_by(self, **kwargs) -> AbstractQueryAdapter:
+        pass
+
     def first(self) -> typing.Union[typing.Any, None]:
         """
         Return the first result of this query or None if the result doesn’t contain any row.

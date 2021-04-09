@@ -49,6 +49,10 @@ class QueryAdapter(AbstractQueryAdapter):
         q = self.make_query().exists()
         return self.session.query(q).scalar()
 
+    def filter_by(self, **kwargs) -> AbstractQueryAdapter:
+        self._base_query = self._base_query.filter_by(**kwargs)
+        return self
+
     def make_query(self):
         q = self._base_query
 

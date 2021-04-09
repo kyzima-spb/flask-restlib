@@ -48,7 +48,7 @@ class RestLib:
         self._factory_callback = callback
         return callback
 
-    def init_app(self, app: Flask) -> None:
+    def init_app(self, app: Flask) -> typing.NoReturn:
         self.ma.init_app(app)
 
         app.config.setdefault('RESTLIB_PAGINATION_ENABLED', True)
@@ -61,6 +61,10 @@ class RestLib:
         app.extensions['restlib'] = self
 
         app.register_error_handler(HTTPException, self.http_exception_handler)
+
+        if not hasattr(app.jinja_env, 'install_gettext_callables'):
+            app.jinja_env.add_extension('jinja2.ext.i18n')
+            app.jinja_env.install_null_translations(True)
 
     def create_blueprint(self, *args, **kwargs) -> ApiBlueprint:
         bp = ApiBlueprint(*args, **kwargs)
