@@ -10,7 +10,23 @@ from werkzeug.local import LocalProxy
 from flask_restlib.core import (
     AbstractQueryAdapter, AbstractResourceManager, AbstractFactory, AbstractFilter
 )
+from authlib.integrations.sqla_oauth2 import (
+    OAuth2ClientMixin,
+    OAuth2TokenMixin as _OAuth2TokenMixin,
+    OAuth2AuthorizationCodeMixin
+)
+from flask_restlib.mixins import TokenMixin
 from flask_restlib.utils import strip_sorting_flag
+
+
+__all__ = (
+    'OAuth2ClientMixin', 'OAuth2TokenMixin', 'OAuth2AuthorizationCodeMixin',
+    'QueryAdapter', 'ResourceManager', 'SQLAFactory',
+)
+
+
+class OAuth2TokenMixin(_OAuth2TokenMixin, TokenMixin):
+    pass
 
 
 class AutoSchemaOpts(SQLAlchemyAutoSchemaOpts):
