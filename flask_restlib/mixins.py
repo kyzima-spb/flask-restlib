@@ -193,6 +193,12 @@ class UpdateViewMixin(UpdateMixin):
 # OAuth2 Mixins
 
 
+AuthorizationCodeType = typing.TypeVar('AuthorizationCodeType', bound='_AuthorizationCodeMixin')
+ClientType = typing.TypeVar('ClientType', bound='_ClientMixin')
+TokenType = typing.TypeVar('TokenType', bound='TokenMixin')
+UserType = typing.TypeVar('UserType', bound='UserMixin')
+
+
 class AuthorizationCodeMixin(_AuthorizationCodeMixin):
     def is_expired(self):
         return self.auth_time + 300 < time.time()

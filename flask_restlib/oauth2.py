@@ -1,10 +1,9 @@
 from __future__ import annotations
 import typing
+from typing import ClassVar, Optional
 
 from authlib.oauth2 import OAuth2Error
-from authlib.integrations.flask_oauth2 import (
-    AuthorizationServer, ResourceProtector
-)
+from authlib.integrations.flask_oauth2 import AuthorizationServer
 from authlib.oauth2.rfc6749 import grants
 from authlib.oauth2.rfc6749.wrappers import OAuth2Request
 from authlib.oauth2.rfc7009 import RevocationEndpoint
@@ -14,59 +13,84 @@ from flask import (
 )
 from flask_login import current_user, login_required
 from flask_restlib.core import AbstractFactory
+from flask_restlib.mixins import (
+    AuthorizationCodeType,
+    ClientType,
+    TokenType,
+    UserType
+)
 from flask_useful.views import MethodView
 from werkzeug.local import LocalProxy
 
 
-current_oauth2 = LocalProxy(lambda: current_app.extensions['restlib_oauth2']) # type: OAuth2
+current_oauth2: OAuth2 = LocalProxy(
+    lambda: current_app.extensions['restlib_oauth2']
+)
 
 
 class AuthorizationCodeGrant(grants.AuthorizationCodeGrant):
-    def save_authorization_code(self, code, request):
+    def save_authorization_code(
+        self,
+        code: str,
+        request: OAuth2Request
+    ) -> AuthorizationCodeType:
         with current_oauth2.get_factory().create_resource_manager() as rm:
             return rm.create(current_oauth2.auth_code_model_class, {
                 'code': code,
-                'client_id': request.client.get_client_id(),
+                'client': request.client,
                 'redirect_uri': request.redirect_uri,
                 'scope': request.scope,
-                'user_id': request.user.get_id(),
+                'user': request.user,
             })
 
-    def query_authorization_code(self, code, client):
-        auth_code = (
+    def query_authorization_code(
+        self,
+        code: str,
+        client: ClientType
+    ) -> typing.Optional[AuthorizationCodeType]:
+        authorization_code = (
             current_oauth2
                 .get_factory()
                 .create_query_adapter(current_oauth2.auth_code_model_class)
-                .filter_by(code=code, client_id=client.get_client_id())
+                .filter_by(code=code, client=client)
                 .one_or_none()
         )
 
-        if auth_code and not auth_code.is_expired():
-            return auth_code
+        if authorization_code and not authorization_code.is_expired():
+            return authorization_code
 
-    def delete_authorization_code(self, authorization_code):
+    def delete_authorization_code(
+        self,
+        authorization_code: AuthorizationCodeType
+    ) -> typing.NoReturn:
         with current_oauth2.get_factory().create_resource_manager() as rm:
             rm.delete(authorization_code)
 
-    def authenticate_user(self, authorization_code):
-        with current_oauth2.get_factory().create_resource_manager() as rm:
-            return rm.get(
-                current_oauth2.user_model_class,
-                authorization_code.user_id
-            )
+    def authenticate_user(
+        self,
+        authorization_code: AuthorizationCodeType
+    ) -> UserType:
+        return authorization_code.user
 
 
 class PasswordGrant(grants.ResourceOwnerPasswordCredentialsGrant):
-    def authenticate_user(self, username, password):
+    def authenticate_user(
+        self,
+        username: str,
+        password: str
+    ) -> typing.Optional[UserType]:
         user = current_oauth2.user_model_class.find_by_username(username)
         if user and user.check_password(password):
             return user
 
 
 class RefreshTokenGrant(grants.RefreshTokenGrant):
-    INCLUDE_NEW_REFRESH_TOKEN = True
+    INCLUDE_NEW_REFRESH_TOKEN: ClassVar[bool] = True
 
-    def authenticate_refresh_token(self, refresh_token):
+    def authenticate_refresh_token(
+        self,
+        refresh_token: str
+    ) -> Optional[TokenType]:
         item = (
             current_oauth2
                 .get_factory()
@@ -74,32 +98,32 @@ class RefreshTokenGrant(grants.RefreshTokenGrant):
                 .filter_by(refresh_token=refresh_token)
                 .one_or_none()
         )
-        # define is_refresh_token_valid by yourself
-        # usually, you should check if refresh token is expired and revoked
+
         if item and item.is_refresh_token_valid():
             return item
 
-    def authenticate_user(self, credential):
-        with current_oauth2.get_factory().create_resource_manager() as rm:
-            return rm.get(
-                current_oauth2.user_model_class,
-                credential.user_id
-            )
+    def authenticate_user(self, credential: TokenType) -> UserType:
+        return credential.user
 
-    def revoke_old_credential(self, credential):
+    def revoke_old_credential(self, credential: TokenType) -> typing.NoReturn:
         with current_oauth2.get_factory().create_resource_manager() as rm:
             rm.update(credential, {'revoked': True})
 
 
 class RevokeToken(RevocationEndpoint):
-    def query_token(self, token, token_type_hint, client):
+    def query_token(
+        self,
+        token: str,
+        token_type_hint: str,
+        client: ClientType
+    ) -> Optional[TokenType]:
         current_app.logger.debug(f'Revocation token: {token}, type hint: {token_type_hint}')
 
         q = (
             current_oauth2
                 .get_factory()
                 .create_query_adapter(current_oauth2.token_model_class)
-                .filter_by(client_id=client.get_client_id())
+                .filter_by(client=client)
         )
 
         if token_type_hint:
@@ -113,8 +137,7 @@ class RevokeToken(RevocationEndpoint):
             return item
         return q.filter_by(refresh_token=token).first()
 
-    def revoke_token(self, token):
-        current_app.logger.debug(token.refresh_token)
+    def revoke_token(self, token: TokenType) -> typing.NoReturn:
         with current_oauth2.get_factory().create_resource_manager() as rm:
             rm.update(token, {'revoked': True})
 
@@ -253,9 +276,9 @@ class OAuth2:
     ) -> typing.NoReturn:
         with self.get_factory().create_resource_manager() as rm:
             token_data.setdefault('scope', '')
-            user = request.user or request.client.get_owner()
+            user = request.user or request.client.user
             rm.create(self.token_model_class, {
-                'client_id': request.client.get_client_id(),
-                'user_id': user.get_id(),
+                'client': request.client,
+                'user': user,
                 **token_data
             })
