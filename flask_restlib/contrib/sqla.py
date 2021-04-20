@@ -1,4 +1,5 @@
 from __future__ import annotations
+from functools import lru_cache
 import typing
 
 import sqlalchemy as sa
@@ -17,12 +18,51 @@ from authlib.integrations.sqla_oauth2 import (
 )
 from flask_restlib.mixins import TokenMixin
 from flask_restlib.utils import strip_sorting_flag
+from sqlalchemy.ext.declarative import declared_attr
+from sqlalchemy.orm import relationship
+from sqlalchemy_utils.functions import get_primary_keys, get_declarative_base
 
 
 __all__ = (
     'OAuth2ClientMixin', 'OAuth2TokenMixin', 'OAuth2AuthorizationCodeMixin',
     'QueryAdapter', 'ResourceManager', 'SQLAFactory',
 )
+
+
+def create_fk_column(model_class):
+    pk = get_primary_keys(model_class)
+
+    if len(pk) > 1:
+        raise RuntimeError('Composite primary key')
+
+    pk_name, pk_column = pk.popitem()
+    return sa.ForeignKey(pk_column, onupdate='CASCADE', ondelete='CASCADE')
+
+
+@lru_cache
+def create_client_reference_mixin(client_model):
+    class _ClientRelationshipMixin:
+        @declared_attr
+        def client_id(cls):
+            return sa.Column(create_fk_column(client_model), nullable=False)
+
+        @declared_attr
+        def client(cls):
+            return relationship(client_model)
+    return _ClientRelationshipMixin
+
+
+@lru_cache
+def create_user_reference_mixin(user_model):
+    class _UserReferenceMixin:
+        @declared_attr
+        def user_id(cls):
+            return sa.Column(create_fk_column(user_model), nullable=False)
+
+        @declared_attr
+        def user(cls):
+            return relationship(user_model)
+    return _UserReferenceMixin
 
 
 class OAuth2TokenMixin(_OAuth2TokenMixin, TokenMixin):
@@ -169,3 +209,47 @@ class SQLAFactory(AbstractFactory):
 
     def get_schema_options_class(self):
         return AutoSchemaOpts
+
+    def create_client_model(self, user_model):
+        return type(
+            'OAuth2Client',
+            (
+                create_user_reference_mixin(user_model),
+                OAuth2ClientMixin,
+                get_declarative_base(user_model),
+            ),
+            {
+                '__tablename__': 'oauth2_client',
+                'id': sa.Column(sa.Integer, primary_key=True),
+            }
+        )
+
+    def create_token_model(self, user_model, client_model):
+        return type(
+            'OAuth2Token',
+            (
+                create_user_reference_mixin(user_model),
+                create_client_reference_mixin(client_model),
+                OAuth2TokenMixin,
+                get_declarative_base(user_model),
+            ),
+            {
+                '__tablename__': 'oauth2_token',
+                'id': sa.Column(sa.Integer, primary_key=True),
+            }
+        )
+
+    def create_authorization_code_model(self, user_model, client_model):
+        return type(
+            'OAuth2Code',
+            (
+                create_user_reference_mixin(user_model),
+                create_client_reference_mixin(client_model),
+                OAuth2AuthorizationCodeMixin,
+                get_declarative_base(user_model),
+            ),
+            {
+                '__tablename__': 'oauth2_code',
+                'id': sa.Column(sa.Integer, primary_key=True),
+            }
+        )

@@ -310,3 +310,15 @@ class AbstractFactory(metaclass=ABCMeta):
     @abstractmethod
     def get_schema_options_class(self):
         """Returns a reference to the base schema options class."""
+
+    @abstractmethod
+    def create_client_model(self, user_model):
+        """Creates and returns the OAuth2 client class."""
+
+    @abstractmethod
+    def create_token_model(self, user_model, client_model):
+        """Creates and returns the OAuth2 token class."""
+
+    @abstractmethod
+    def create_authorization_code_model(self, user_model, client_model):
+        """Creates and returns the OAuth2 code class."""

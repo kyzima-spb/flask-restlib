@@ -35,7 +35,7 @@ class AuthorizationCodeGrant(grants.AuthorizationCodeGrant):
         request: OAuth2Request
     ) -> AuthorizationCodeType:
         with current_oauth2.get_factory().create_resource_manager() as rm:
-            return rm.create(current_oauth2.auth_code_model_class, {
+            return rm.create(current_oauth2.OAuth2Code, {
                 'code': code,
                 'client': request.client,
                 'redirect_uri': request.redirect_uri,
@@ -51,7 +51,7 @@ class AuthorizationCodeGrant(grants.AuthorizationCodeGrant):
         authorization_code = (
             current_oauth2
                 .get_factory()
-                .create_query_adapter(current_oauth2.auth_code_model_class)
+                .create_query_adapter(current_oauth2.OAuth2Code)
                 .filter_by(code=code, client=client)
                 .one_or_none()
         )
@@ -79,7 +79,7 @@ class PasswordGrant(grants.ResourceOwnerPasswordCredentialsGrant):
         username: str,
         password: str
     ) -> typing.Optional[UserType]:
-        user = current_oauth2.user_model_class.find_by_username(username)
+        user = current_oauth2.OAuth2User.find_by_username(username)
         if user and user.check_password(password):
             return user
 
@@ -94,7 +94,7 @@ class RefreshTokenGrant(grants.RefreshTokenGrant):
         item = (
             current_oauth2
                 .get_factory()
-                .create_query_adapter(current_oauth2.token_model_class)
+                .create_query_adapter(current_oauth2.OAuth2Token)
                 .filter_by(refresh_token=refresh_token)
                 .one_or_none()
         )
@@ -122,7 +122,7 @@ class RevokeToken(RevocationEndpoint):
         q = (
             current_oauth2
                 .get_factory()
-                .create_query_adapter(current_oauth2.token_model_class)
+                .create_query_adapter(current_oauth2.OAuth2Token)
                 .filter_by(client=client)
         )
 
@@ -187,16 +187,19 @@ class OAuth2:
         self,
         app: typing.Optional[Flask] = None,
         *,
-        user_model_class: typing.Type,
-        client_model_class: typing.Type,
-        token_model_class: typing.Type,
-        auth_code_model_class: typing.Type,
+        user_model: typing.Type,
+        client_model: typing.Optional[typing.Type] = None,
+        token_model: typing.Optional[typing.Type] = None,
+        authorization_code_model: typing.Optional[typing.Type] = None,
         factory: typing.Optional[AbstractFactory] = None
     ):
-        self.user_model_class = user_model_class
-        self.client_model_class = client_model_class
-        self.token_model_class = token_model_class
-        self.auth_code_model_class = auth_code_model_class
+        self._factory_callback = None
+        self._factory = factory
+
+        self.OAuth2User = user_model
+        self._client_model = client_model
+        self._token_model = token_model
+        self._code_model = authorization_code_model
 
         self.bp = Blueprint('oauth', __name__)
         self.server = AuthorizationServer()
@@ -209,11 +212,31 @@ class OAuth2:
         self.bp.add_url_rule('/token', view_func=self.access_token_endpoint)
         self.bp.add_url_rule('/revoke', view_func=self.revoke_token_endpoint)
 
-        self._factory_callback = None
-        self._factory = factory
-
         if app is not None:
             self.init_app(app)
+
+    @property
+    def OAuth2Client(self):
+        if self._client_model is None:
+            self._client_model = self.get_factory().create_client_model(self.OAuth2User)
+        return self._client_model
+
+    @property
+    def OAuth2Token(self):
+        if self._token_model is None:
+            self._token_model = self.get_factory().create_token_model(
+                self.OAuth2User, self.OAuth2Client
+            )
+        return self._token_model
+
+    @property
+    def OAuth2Code(self):
+        if self._code_model is None:
+            factory = self.get_factory()
+            self._code_model = factory.create_authorization_code_model(
+                self.OAuth2User, self.OAuth2Client
+            )
+        return self._code_model
 
     def factory_loader(self, callback):
         """This sets the callback for loading default resource manager."""
@@ -227,7 +250,7 @@ class OAuth2:
             if callback is None:
                 raise RuntimeError('Missing factory_loader.')
 
-            self._factory = callback()()
+            self._factory = callback()
         return self._factory
 
     def init_app(self, app: Flask) -> typing.NoReturn:
@@ -264,7 +287,7 @@ class OAuth2:
     def query_client(self, client_id: str):
         return (
             self.get_factory()
-                .create_query_adapter(self.client_model_class)
+                .create_query_adapter(self.OAuth2Client)
                 .filter_by(client_id=client_id)
                 .one_or_none()
         )
@@ -277,7 +300,7 @@ class OAuth2:
         with self.get_factory().create_resource_manager() as rm:
             token_data.setdefault('scope', '')
             user = request.user or request.client.user
-            rm.create(self.token_model_class, {
+            rm.create(self.OAuth2Token, {
                 'client': request.client,
                 'user': user,
                 **token_data
