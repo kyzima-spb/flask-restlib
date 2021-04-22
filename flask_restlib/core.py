@@ -20,6 +20,8 @@ __all__ = (
 )
 
 
+QueryAdapterType = typing.TypeVar('QueryAdapterType', bound='AbstractQueryAdapter')
+ResourceManagerType = typing.TypeVar('ResourceManagerType', bound='AbstractResourceManager')
 AbstractFactoryType = typing.TypeVar('AbstractFactoryType', bound='AbstractFactory')
 
 

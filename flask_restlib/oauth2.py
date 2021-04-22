@@ -13,7 +13,11 @@ from flask import (
     current_app, request
 )
 from flask_login import current_user, login_required
-from flask_restlib.core import AbstractFactoryType
+from flask_restlib.core import (
+    QueryAdapterType,
+    ResourceManagerType,
+    AbstractFactoryType
+)
 from flask_restlib.mixins import (
     AuthorizationCodeType,
     ClientType,
@@ -35,7 +39,7 @@ class AuthorizationCodeGrant(grants.AuthorizationCodeGrant):
         code: str,
         request: OAuth2Request
     ) -> AuthorizationCodeType:
-        with current_oauth2.factory.create_resource_manager() as rm:
+        with current_oauth2.rm as rm:
             return rm.create(current_oauth2.OAuth2Code, {
                 'id': uuid4(),
                 'code': code,
@@ -65,7 +69,7 @@ class AuthorizationCodeGrant(grants.AuthorizationCodeGrant):
         self,
         authorization_code: AuthorizationCodeType
     ) -> typing.NoReturn:
-        with current_oauth2.factory.create_resource_manager() as rm:
+        with current_oauth2.rm as rm:
             rm.delete(authorization_code)
 
     def authenticate_user(
@@ -108,7 +112,7 @@ class RefreshTokenGrant(grants.RefreshTokenGrant):
         return credential.user
 
     def revoke_old_credential(self, credential: TokenType) -> typing.NoReturn:
-        with current_oauth2.factory.create_resource_manager() as rm:
+        with current_oauth2.rm as rm:
             rm.update(credential, {'revoked': True})
 
 
@@ -140,7 +144,7 @@ class RevokeToken(RevocationEndpoint):
         return q.filter_by(refresh_token=token).first()
 
     def revoke_token(self, token: TokenType) -> typing.NoReturn:
-        with current_oauth2.factory.create_resource_manager() as rm:
+        with current_oauth2.rm as rm:
             rm.update(token, {'revoked': True})
 
 
@@ -185,6 +189,12 @@ class RevokeTokenView(MethodView):
 
 
 class OAuth2:
+    __slots__ = (
+        'factory', 'bp', 'server',
+        'OAuth2User', 'OAuth2Client', 'OAuth2Token', 'OAuth2Code',
+        'authorize_endpoint', 'access_token_endpoint', 'revoke_token_endpoint',
+    )
+
     def __init__(
         self,
         app: typing.Optional[Flask] = None,
@@ -195,8 +205,15 @@ class OAuth2:
         token_model: typing.Optional[typing.Type] = None,
         authorization_code_model: typing.Optional[typing.Type] = None
     ):
-        self.factory = factory
-
+        """
+        Arguments:
+            app (Flask): Flask application instance that being used.
+            factory (AbstractFactoryType): Factory instance that being used.
+            user_model: Reference to the User model class.
+            client_model: OAuth client model class.
+            token_model: OAuth token model class.
+            authorization_code_model: OAuth code model class.
+        """
         if client_model is None:
             client_model = factory.create_client_model(user_model)
 
@@ -207,6 +224,8 @@ class OAuth2:
             authorization_code_model = factory.create_authorization_code_model(
                 user_model, client_model
             )
+
+        self.factory = factory
 
         self.OAuth2User = user_model
         self.OAuth2Client = client_model
@@ -258,21 +277,26 @@ class OAuth2:
 
         app.register_blueprint(self.bp, url_prefix=app.config['RESTLIB_OAUTH2_URL_PREFIX'])
 
+    @property
+    def rm(self) -> ResourceManagerType:
+        """Returns a resource manager instance."""
+        return self.factory.create_resource_manager()
+
     def query_client(self, client_id: str):
-        rm = self.factory.create_resource_manager()
-        return rm.get(self.OAuth2Client, client_id)
+        """Returns client by client_id."""
+        return self.rm.get(self.OAuth2Client, client_id)
 
     def save_token(
         self,
         token_data: dict,
         request: OAuth2Request
     ) -> typing.NoReturn:
-        with self.factory.create_resource_manager() as rm:
-            token_data.setdefault('scope', '')
-            user = request.user or request.client.user
-            rm.create(self.OAuth2Token, {
+        """Saves tokens to persistent storage."""
+        with self.rm:
+            self.rm.create(self.OAuth2Token, {
                 'id': uuid4(),
                 'client': request.client,
-                'user': user,
-                **token_data
+                'user': request.user or request.client.user,
+                'scope': token_data.pop('scope', ''),
+                **token_data,
             })
