@@ -20,6 +20,9 @@ __all__ = (
 )
 
 
+AbstractFactoryType = typing.TypeVar('AbstractFactoryType', bound='AbstractFactory')
+
+
 class AbstractFilter(metaclass=ABCMeta):
     """
     An instance of the current class is used as a filter

@@ -13,7 +13,7 @@ from flask import (
     current_app, request
 )
 from flask_login import current_user, login_required
-from flask_restlib.core import AbstractFactory
+from flask_restlib.core import AbstractFactoryType
 from flask_restlib.mixins import (
     AuthorizationCodeType,
     ClientType,
@@ -35,7 +35,7 @@ class AuthorizationCodeGrant(grants.AuthorizationCodeGrant):
         code: str,
         request: OAuth2Request
     ) -> AuthorizationCodeType:
-        with current_oauth2.get_factory().create_resource_manager() as rm:
+        with current_oauth2.factory.create_resource_manager() as rm:
             return rm.create(current_oauth2.OAuth2Code, {
                 'id': uuid4(),
                 'code': code,
@@ -52,7 +52,7 @@ class AuthorizationCodeGrant(grants.AuthorizationCodeGrant):
     ) -> typing.Optional[AuthorizationCodeType]:
         authorization_code = (
             current_oauth2
-                .get_factory()
+                .factory
                 .create_query_adapter(current_oauth2.OAuth2Code)
                 .filter_by(code=code, client=client)
                 .one_or_none()
@@ -65,7 +65,7 @@ class AuthorizationCodeGrant(grants.AuthorizationCodeGrant):
         self,
         authorization_code: AuthorizationCodeType
     ) -> typing.NoReturn:
-        with current_oauth2.get_factory().create_resource_manager() as rm:
+        with current_oauth2.factory.create_resource_manager() as rm:
             rm.delete(authorization_code)
 
     def authenticate_user(
@@ -95,7 +95,7 @@ class RefreshTokenGrant(grants.RefreshTokenGrant):
     ) -> Optional[TokenType]:
         item = (
             current_oauth2
-                .get_factory()
+                .factory
                 .create_query_adapter(current_oauth2.OAuth2Token)
                 .filter_by(refresh_token=refresh_token)
                 .one_or_none()
@@ -108,7 +108,7 @@ class RefreshTokenGrant(grants.RefreshTokenGrant):
         return credential.user
 
     def revoke_old_credential(self, credential: TokenType) -> typing.NoReturn:
-        with current_oauth2.get_factory().create_resource_manager() as rm:
+        with current_oauth2.factory.create_resource_manager() as rm:
             rm.update(credential, {'revoked': True})
 
 
@@ -123,7 +123,7 @@ class RevokeToken(RevocationEndpoint):
 
         q = (
             current_oauth2
-                .get_factory()
+                .factory
                 .create_query_adapter(current_oauth2.OAuth2Token)
                 .filter_by(client=client)
         )
@@ -140,7 +140,7 @@ class RevokeToken(RevocationEndpoint):
         return q.filter_by(refresh_token=token).first()
 
     def revoke_token(self, token: TokenType) -> typing.NoReturn:
-        with current_oauth2.get_factory().create_resource_manager() as rm:
+        with current_oauth2.factory.create_resource_manager() as rm:
             rm.update(token, {'revoked': True})
 
 
@@ -189,19 +189,29 @@ class OAuth2:
         self,
         app: typing.Optional[Flask] = None,
         *,
+        factory: AbstractFactoryType,
         user_model: typing.Type,
         client_model: typing.Optional[typing.Type] = None,
         token_model: typing.Optional[typing.Type] = None,
-        authorization_code_model: typing.Optional[typing.Type] = None,
-        factory: typing.Optional[AbstractFactory] = None
+        authorization_code_model: typing.Optional[typing.Type] = None
     ):
-        self._factory_callback = None
-        self._factory = factory
+        self.factory = factory
+
+        if client_model is None:
+            client_model = factory.create_client_model(user_model)
+
+        if token_model is None:
+            token_model = factory.create_token_model(user_model, client_model)
+
+        if authorization_code_model is None:
+            authorization_code_model = factory.create_authorization_code_model(
+                user_model, client_model
+            )
 
         self.OAuth2User = user_model
-        self._client_model = client_model
-        self._token_model = token_model
-        self._code_model = authorization_code_model
+        self.OAuth2Client = client_model
+        self.OAuth2Token = token_model
+        self.OAuth2Code = authorization_code_model
 
         self.bp = Blueprint('oauth', __name__)
         self.server = AuthorizationServer()
@@ -216,44 +226,6 @@ class OAuth2:
 
         if app is not None:
             self.init_app(app)
-
-    @property
-    def OAuth2Client(self):
-        if self._client_model is None:
-            self._client_model = self.get_factory().create_client_model(self.OAuth2User)
-        return self._client_model
-
-    @property
-    def OAuth2Token(self):
-        if self._token_model is None:
-            self._token_model = self.get_factory().create_token_model(
-                self.OAuth2User, self.OAuth2Client
-            )
-        return self._token_model
-
-    @property
-    def OAuth2Code(self):
-        if self._code_model is None:
-            factory = self.get_factory()
-            self._code_model = factory.create_authorization_code_model(
-                self.OAuth2User, self.OAuth2Client
-            )
-        return self._code_model
-
-    def factory_loader(self, callback):
-        """This sets the callback for loading default resource manager."""
-        self._factory_callback = callback
-        return callback
-
-    def get_factory(self) -> AbstractFactory:
-        if self._factory is None:
-            callback = getattr(self, '_factory_callback')
-
-            if callback is None:
-                raise RuntimeError('Missing factory_loader.')
-
-            self._factory = callback()
-        return self._factory
 
     def init_app(self, app: Flask) -> typing.NoReturn:
         app.config.setdefault('RESTLIB_OAUTH2_URL_PREFIX', '/oauth')
@@ -287,7 +259,7 @@ class OAuth2:
         app.register_blueprint(self.bp, url_prefix=app.config['RESTLIB_OAUTH2_URL_PREFIX'])
 
     def query_client(self, client_id: str):
-        rm = self.get_factory().create_resource_manager()
+        rm = self.factory.create_resource_manager()
         return rm.get(self.OAuth2Client, client_id)
 
     def save_token(
@@ -295,7 +267,7 @@ class OAuth2:
         token_data: dict,
         request: OAuth2Request
     ) -> typing.NoReturn:
-        with self.get_factory().create_resource_manager() as rm:
+        with self.factory.create_resource_manager() as rm:
             token_data.setdefault('scope', '')
             user = request.user or request.client.user
             rm.create(self.OAuth2Token, {
