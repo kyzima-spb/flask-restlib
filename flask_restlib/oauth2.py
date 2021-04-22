@@ -1,6 +1,7 @@
 from __future__ import annotations
 import typing
 from typing import ClassVar, Optional
+from uuid import uuid4
 
 from authlib.oauth2 import OAuth2Error
 from authlib.integrations.flask_oauth2 import AuthorizationServer
@@ -36,6 +37,7 @@ class AuthorizationCodeGrant(grants.AuthorizationCodeGrant):
     ) -> AuthorizationCodeType:
         with current_oauth2.get_factory().create_resource_manager() as rm:
             return rm.create(current_oauth2.OAuth2Code, {
+                'id': uuid4(),
                 'code': code,
                 'client': request.client,
                 'redirect_uri': request.redirect_uri,
@@ -285,12 +287,8 @@ class OAuth2:
         app.register_blueprint(self.bp, url_prefix=app.config['RESTLIB_OAUTH2_URL_PREFIX'])
 
     def query_client(self, client_id: str):
-        return (
-            self.get_factory()
-                .create_query_adapter(self.OAuth2Client)
-                .filter_by(client_id=client_id)
-                .one_or_none()
-        )
+        rm = self.get_factory().create_resource_manager()
+        return rm.get(self.OAuth2Client, client_id)
 
     def save_token(
         self,
@@ -301,6 +299,7 @@ class OAuth2:
             token_data.setdefault('scope', '')
             user = request.user or request.client.user
             rm.create(self.OAuth2Token, {
+                'id': uuid4(),
                 'client': request.client,
                 'user': user,
                 **token_data

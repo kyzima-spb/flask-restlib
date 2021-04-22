@@ -1,5 +1,5 @@
 from __future__ import annotations
-from functools import lru_cache
+from functools import lru_cache, partial
 import typing
 
 import sqlalchemy as sa
@@ -12,14 +12,21 @@ from flask_restlib.core import (
     AbstractQueryAdapter, AbstractResourceManager, AbstractFactory, AbstractFilter
 )
 from authlib.integrations.sqla_oauth2 import (
-    OAuth2ClientMixin,
     OAuth2TokenMixin as _OAuth2TokenMixin,
-    OAuth2AuthorizationCodeMixin
+    OAuth2AuthorizationCodeMixin as _OAuth2AuthorizationCodeMixin
 )
-from flask_restlib.mixins import TokenMixin
-from flask_restlib.utils import strip_sorting_flag
+from flask_restlib.mixins import (
+    AuthorizationCodeMixin,
+    ClientMixin,
+    TokenMixin
+)
+from flask_restlib.utils import (
+    strip_sorting_flag,
+    generate_client_id
+)
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.orm import relationship
+from sqlalchemy_utils.types import UUIDType
 from sqlalchemy_utils.functions import get_primary_keys, get_declarative_base
 
 
@@ -65,8 +72,22 @@ def create_user_reference_mixin(user_model):
     return _UserReferenceMixin
 
 
+class OAuth2ClientMixin(ClientMixin):
+    id = sa.Column(
+        sa.String(48), primary_key=True, default=partial(generate_client_id, 48)
+    )
+    client_secret = sa.Column(sa.String(120), nullable=False, default='')
+    client_id_issued_at = sa.Column(sa.Integer, nullable=False, default=0)
+    client_secret_expires_at = sa.Column(sa.Integer, nullable=False, default=0)
+    _client_metadata = sa.Column('client_metadata', sa.Text)
+
+
 class OAuth2TokenMixin(_OAuth2TokenMixin, TokenMixin):
-    pass
+    id = sa.Column(UUIDType(binary=False), primary_key=True)
+
+
+class OAuth2AuthorizationCodeMixin(_OAuth2AuthorizationCodeMixin, AuthorizationCodeMixin):
+    id = sa.Column(UUIDType(binary=False), primary_key=True)
 
 
 class AutoSchemaOpts(SQLAlchemyAutoSchemaOpts):
@@ -220,7 +241,6 @@ class SQLAFactory(AbstractFactory):
             ),
             {
                 '__tablename__': 'oauth2_client',
-                'id': sa.Column(sa.Integer, primary_key=True),
             }
         )
 
@@ -235,7 +255,6 @@ class SQLAFactory(AbstractFactory):
             ),
             {
                 '__tablename__': 'oauth2_token',
-                'id': sa.Column(sa.Integer, primary_key=True),
             }
         )
 
@@ -250,6 +269,5 @@ class SQLAFactory(AbstractFactory):
             ),
             {
                 '__tablename__': 'oauth2_code',
-                'id': sa.Column(sa.Integer, primary_key=True),
             }
         )

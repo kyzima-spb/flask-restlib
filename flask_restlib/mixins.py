@@ -439,6 +439,10 @@ class ClientMixin(_ClientMixin):
     def software_version(self) -> typing.Union[str, None]:
         return self.client_metadata.get('software_version')
 
+    @property
+    def client_id(self):
+        return str(self.id)
+
     def get_client_id(self) -> str:
         return self.client_id
 

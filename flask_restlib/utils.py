@@ -1,4 +1,5 @@
 from importlib import import_module
+import secrets
 import re
 
 
@@ -23,6 +24,20 @@ def camel_to_snake(name):
 def snake_to_camel(name):
     """Converts a snake case string to a camelcase string."""
     return ''.join(name.title().split('_'))
+
+
+def generate_client_id(length: int) -> str:
+    from flask_restlib.oauth2 import current_oauth2
+
+    while 1:
+        client_id = secrets.token_hex(length // 2)
+
+        if current_oauth2.query_client(client_id) is None:
+            return client_id
+
+
+def generate_client_secret(length: int) -> str:
+    return secrets.token_hex(length // 2)
 
 
 def import_string(dotted_path):
