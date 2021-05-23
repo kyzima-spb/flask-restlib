@@ -1,4 +1,5 @@
 from __future__ import annotations
+from functools import lru_cache, partial
 import typing
 
 import sqlalchemy as sa
@@ -8,9 +9,88 @@ from flask_marshmallow.sqla import SQLAlchemyAutoSchema, SQLAlchemyAutoSchemaOpt
 from werkzeug.local import LocalProxy
 
 from flask_restlib.core import (
-    AbstractQueryAdapter, AbstractResourceManager, AbstractFactory, AbstractFilter
+    AbstractQueryAdapter,
+    AbstractResourceManager,
+    AbstractFactory,
+    QueryExpression
 )
-from flask_restlib.utils import strip_sorting_flag
+from authlib.integrations.sqla_oauth2 import (
+    OAuth2TokenMixin as _OAuth2TokenMixin,
+    OAuth2AuthorizationCodeMixin as _OAuth2AuthorizationCodeMixin
+)
+from flask_restlib.mixins import (
+    AuthorizationCodeMixin,
+    ClientMixin,
+    TokenMixin
+)
+from flask_restlib.utils import (
+    strip_sorting_flag,
+    generate_client_id
+)
+from sqlalchemy.ext.declarative import declared_attr
+from sqlalchemy.orm import relationship
+from sqlalchemy_utils.types import UUIDType
+from sqlalchemy_utils.functions import get_primary_keys, get_declarative_base, get_query_entities
+
+
+__all__ = (
+    'OAuth2ClientMixin', 'OAuth2TokenMixin', 'OAuth2AuthorizationCodeMixin',
+    'QueryAdapter', 'ResourceManager', 'SQLAFactory',
+)
+
+
+def create_fk_column(model_class):
+    pk = get_primary_keys(model_class)
+
+    if len(pk) > 1:
+        raise RuntimeError('Composite primary key')
+
+    pk_name, pk_column = pk.popitem()
+    return sa.ForeignKey(pk_column, onupdate='CASCADE', ondelete='CASCADE')
+
+
+@lru_cache
+def create_client_reference_mixin(client_model):
+    class _ClientRelationshipMixin:
+        @declared_attr
+        def client_id(cls):
+            return sa.Column(create_fk_column(client_model), nullable=False)
+
+        @declared_attr
+        def client(cls):
+            return relationship(client_model)
+    return _ClientRelationshipMixin
+
+
+@lru_cache
+def create_user_reference_mixin(user_model):
+    class _UserReferenceMixin:
+        @declared_attr
+        def user_id(cls):
+            return sa.Column(create_fk_column(user_model), nullable=False)
+
+        @declared_attr
+        def user(cls):
+            return relationship(user_model)
+    return _UserReferenceMixin
+
+
+class OAuth2ClientMixin(ClientMixin):
+    id = sa.Column(
+        sa.String(48), primary_key=True, default=partial(generate_client_id, 48)
+    )
+    client_secret = sa.Column(sa.String(120), nullable=False, default='')
+    client_id_issued_at = sa.Column(sa.Integer, nullable=False, default=0)
+    client_secret_expires_at = sa.Column(sa.Integer, nullable=False, default=0)
+    _client_metadata = sa.Column('client_metadata', sa.Text)
+
+
+class OAuth2TokenMixin(_OAuth2TokenMixin, TokenMixin):
+    id = sa.Column(UUIDType(binary=False), primary_key=True)
+
+
+class OAuth2AuthorizationCodeMixin(_OAuth2AuthorizationCodeMixin, AuthorizationCodeMixin):
+    id = sa.Column(UUIDType(binary=False), primary_key=True)
 
 
 class AutoSchemaOpts(SQLAlchemyAutoSchemaOpts):
@@ -27,6 +107,40 @@ class AutoSchemaOpts(SQLAlchemyAutoSchemaOpts):
 
 class AutoSchema(SQLAlchemyAutoSchema):
     OPTIONS_CLASS = AutoSchemaOpts
+
+
+class SQLAModelField:
+    def __init__(self, column):
+        self.column = column
+
+    def __eq__(self, other):
+        return SQLAQueryExpression(self.column == other)
+
+    def __ne__(self, other):
+        return SQLAQueryExpression(self.column.name != other)
+
+    def __lt__(self, other):
+        return SQLAQueryExpression(self.column.name < other)
+
+    def __le__(self, other):
+        return SQLAQueryExpression(self.column.name <= other)
+
+    def __gt__(self, other):
+        return SQLAQueryExpression(self.column.name > other)
+
+    def __ge__(self, other):
+        return SQLAQueryExpression(self.column.name >= other)
+
+
+class SQLAQueryExpression(QueryExpression):
+    def __and__(self, other):
+        return self.__class__(sa.and_(self.expr, other.expr))
+
+    def __call__(self, q):
+        return q.filter(self.expr)
+
+    def __or__(self, other):
+        return self.__class__(sa.or_(self.expr, other.expr))
 
 
 class QueryAdapter(AbstractQueryAdapter):
@@ -48,6 +162,11 @@ class QueryAdapter(AbstractQueryAdapter):
     def exists(self) -> bool:
         q = self.make_query().exists()
         return self.session.query(q).scalar()
+
+    def filter_by(self, **kwargs) -> AbstractQueryAdapter:
+        # print(get_query_entities(self._base_query))
+        self._base_query = self._base_query.filter_by(**kwargs)
+        return self
 
     def make_query(self):
         q = self._base_query
@@ -129,6 +248,9 @@ class SQLAFactory(AbstractFactory):
 
         return ext.db.session
 
+    def create_model_field_adapter(self, column):
+        return SQLAModelField(column)
+
     def create_query_adapter(self, base_query) -> QueryAdapter:
         return QueryAdapter(base_query, session=self.session)
 
@@ -149,3 +271,60 @@ class SQLAFactory(AbstractFactory):
 
     def get_schema_options_class(self):
         return AutoSchemaOpts
+
+    def create_client_model(self, user_model):
+        return type(
+            'OAuth2Client',
+            (
+                create_user_reference_mixin(user_model),
+                OAuth2ClientMixin,
+                get_declarative_base(user_model),
+            ),
+            {
+                '__tablename__': 'oauth2_client',
+            }
+        )
+
+    def create_token_model(self, user_model, client_model):
+        return type(
+            'OAuth2Token',
+            (
+                create_user_reference_mixin(user_model),
+                create_client_reference_mixin(client_model),
+                OAuth2TokenMixin,
+                get_declarative_base(user_model),
+            ),
+            {
+                '__tablename__': 'oauth2_token',
+            }
+        )
+
+    def create_authorization_code_model(self, user_model, client_model):
+        return type(
+            'OAuth2Code',
+            (
+                create_user_reference_mixin(user_model),
+                create_client_reference_mixin(client_model),
+                OAuth2AuthorizationCodeMixin,
+                get_declarative_base(user_model),
+            ),
+            {
+                '__tablename__': 'oauth2_code',
+            }
+        )
+
+from sqlalchemy.sql.elements import BinaryExpression
+from sqlalchemy.orm.attributes import QueryableAttribute
+
+class AbstractAttribute:
+    def to_native(self, attr):
+        pass
+
+
+class SQLAlchemyAttribute:
+    def __init__(self, attr):
+        self.attr = self.to_native(attr)
+
+    def to_native(self, attr):
+        if isinstance(attr, QueryableAttribute):
+            return attr

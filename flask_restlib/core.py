@@ -20,6 +20,11 @@ __all__ = (
 )
 
 
+QueryAdapterType = typing.TypeVar('QueryAdapterType', bound='AbstractQueryAdapter')
+ResourceManagerType = typing.TypeVar('ResourceManagerType', bound='AbstractResourceManager')
+AbstractFactoryType = typing.TypeVar('AbstractFactoryType', bound='AbstractFactory')
+
+
 class AbstractFilter(metaclass=ABCMeta):
     """
     An instance of the current class is used as a filter
@@ -27,13 +32,26 @@ class AbstractFilter(metaclass=ABCMeta):
     """
 
     @abstractmethod
-    def apply_to(self, q):
+    def __and__(self, other):
+        pass
+
+    @abstractmethod
+    def __call__(self, q):
         """
         Applies the current filter to the given queryset and returns the native queryset.
 
         Arguments:
             q: native queryset.
         """
+
+    @abstractmethod
+    def __or__(self, other):
+        pass
+
+
+class QueryExpression(AbstractFilter):
+    def __init__(self, expr):
+        self.expr = expr
 
 
 class UrlQueryFilter(AbstractFilter):
@@ -64,6 +82,10 @@ class UrlQueryFilter(AbstractFilter):
 
         self._filter_schema = filter_schema
 
+    def __call__(self, q):
+        input_data = self.get_input_data()
+        return self._do_apply(q, input_data)
+
     @abstractmethod
     def _do_apply(self, q, input_data: dict):
         """
@@ -73,10 +95,6 @@ class UrlQueryFilter(AbstractFilter):
             q: native queryset.
             input_data (dict): the input used for filtering.
         """
-
-    def apply_to(self, q):
-        input_data = self.get_input_data()
-        return self._do_apply(q, input_data)
 
     def get_input_data(self) -> dict:
         """Returns the input used for filtering."""
@@ -118,10 +136,13 @@ class AbstractQueryAdapter(metaclass=ABCMeta):
     def exists(self) -> bool:
         """Returns true if a resource with the specified search criteria exists in persistent storage."""
 
-    def filter(self, filter_: AbstractFilter) -> AbstractQueryAdapter:
+    def filter(self, filter_callback):
         """Applies this filter to the current queryset."""
-        self._base_query = filter_.apply_to(self.make_query())
+        self._base_query = filter_callback(self.make_query())
         return self
+
+    def filter_by(self, **kwargs) -> AbstractQueryAdapter:
+        pass
 
     def first(self) -> typing.Union[typing.Any, None]:
         """
@@ -279,6 +300,15 @@ class AbstractFactory(metaclass=ABCMeta):
     """
 
     @abstractmethod
+    def create_model_field_adapter(self, column):
+        """
+        Creates and returns an adapter for a model attribute.
+
+        Arguments:
+            column: native attribute of the model.
+        """
+
+    @abstractmethod
     def create_query_adapter(self, base_query) -> AbstractQueryAdapter:
         """
         Creates and returns a queryset for retrieving resources from persistent storage.
@@ -307,3 +337,15 @@ class AbstractFactory(metaclass=ABCMeta):
     @abstractmethod
     def get_schema_options_class(self):
         """Returns a reference to the base schema options class."""
+
+    @abstractmethod
+    def create_client_model(self, user_model):
+        """Creates and returns the OAuth2 client class."""
+
+    @abstractmethod
+    def create_token_model(self, user_model, client_model):
+        """Creates and returns the OAuth2 token class."""
+
+    @abstractmethod
+    def create_authorization_code_model(self, user_model, client_model):
+        """Creates and returns the OAuth2 code class."""
