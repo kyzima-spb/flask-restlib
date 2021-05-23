@@ -97,4 +97,8 @@ class RestLib:
         return resp, err.code
 
 
+def F(column):
+    return current_restlib.factory.create_model_field_adapter(column)
+
+
 current_restlib = LocalProxy(lambda: current_app.extensions['restlib'])

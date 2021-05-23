@@ -13,6 +13,7 @@ from flask import (
     current_app, request
 )
 from flask_login import current_user, login_required
+from flask_restlib import F
 from flask_restlib.core import (
     QueryAdapterType,
     ResourceManagerType,
@@ -138,10 +139,9 @@ class RevokeToken(RevocationEndpoint):
         # without token_type_hint
         current_app.logger.debug(f'Supported token types: {self.SUPPORTED_TOKEN_TYPES}')
 
-        item = q.filter_by(access_token=token).first()
-        if item:
-            return item
-        return q.filter_by(refresh_token=token).first()
+        token_model = current_oauth2.OAuth2Token
+        qs = (F(token_model.access_token) == token) | (F(token_model.refresh_token) == token)
+        return q.filter(qs).first()
 
     def revoke_token(self, token: TokenType) -> typing.NoReturn:
         with current_oauth2.rm as rm:

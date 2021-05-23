@@ -9,7 +9,10 @@ from flask_marshmallow.sqla import SQLAlchemyAutoSchema, SQLAlchemyAutoSchemaOpt
 from werkzeug.local import LocalProxy
 
 from flask_restlib.core import (
-    AbstractQueryAdapter, AbstractResourceManager, AbstractFactory, AbstractFilter
+    AbstractQueryAdapter,
+    AbstractResourceManager,
+    AbstractFactory,
+    QueryExpression
 )
 from authlib.integrations.sqla_oauth2 import (
     OAuth2TokenMixin as _OAuth2TokenMixin,
@@ -27,7 +30,7 @@ from flask_restlib.utils import (
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.orm import relationship
 from sqlalchemy_utils.types import UUIDType
-from sqlalchemy_utils.functions import get_primary_keys, get_declarative_base
+from sqlalchemy_utils.functions import get_primary_keys, get_declarative_base, get_query_entities
 
 
 __all__ = (
@@ -106,6 +109,40 @@ class AutoSchema(SQLAlchemyAutoSchema):
     OPTIONS_CLASS = AutoSchemaOpts
 
 
+class SQLAModelField:
+    def __init__(self, column):
+        self.column = column
+
+    def __eq__(self, other):
+        return SQLAQueryExpression(self.column == other)
+
+    def __ne__(self, other):
+        return SQLAQueryExpression(self.column.name != other)
+
+    def __lt__(self, other):
+        return SQLAQueryExpression(self.column.name < other)
+
+    def __le__(self, other):
+        return SQLAQueryExpression(self.column.name <= other)
+
+    def __gt__(self, other):
+        return SQLAQueryExpression(self.column.name > other)
+
+    def __ge__(self, other):
+        return SQLAQueryExpression(self.column.name >= other)
+
+
+class SQLAQueryExpression(QueryExpression):
+    def __and__(self, other):
+        return self.__class__(sa.and_(self.expr, other.expr))
+
+    def __call__(self, q):
+        return q.filter(self.expr)
+
+    def __or__(self, other):
+        return self.__class__(sa.or_(self.expr, other.expr))
+
+
 class QueryAdapter(AbstractQueryAdapter):
     __slots__ = ('session',)
 
@@ -127,6 +164,7 @@ class QueryAdapter(AbstractQueryAdapter):
         return self.session.query(q).scalar()
 
     def filter_by(self, **kwargs) -> AbstractQueryAdapter:
+        # print(get_query_entities(self._base_query))
         self._base_query = self._base_query.filter_by(**kwargs)
         return self
 
@@ -210,6 +248,9 @@ class SQLAFactory(AbstractFactory):
 
         return ext.db.session
 
+    def create_model_field_adapter(self, column):
+        return SQLAModelField(column)
+
     def create_query_adapter(self, base_query) -> QueryAdapter:
         return QueryAdapter(base_query, session=self.session)
 
@@ -271,3 +312,19 @@ class SQLAFactory(AbstractFactory):
                 '__tablename__': 'oauth2_code',
             }
         )
+
+from sqlalchemy.sql.elements import BinaryExpression
+from sqlalchemy.orm.attributes import QueryableAttribute
+
+class AbstractAttribute:
+    def to_native(self, attr):
+        pass
+
+
+class SQLAlchemyAttribute:
+    def __init__(self, attr):
+        self.attr = self.to_native(attr)
+
+    def to_native(self, attr):
+        if isinstance(attr, QueryableAttribute):
+            return attr

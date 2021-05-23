@@ -32,13 +32,26 @@ class AbstractFilter(metaclass=ABCMeta):
     """
 
     @abstractmethod
-    def apply_to(self, q):
+    def __and__(self, other):
+        pass
+
+    @abstractmethod
+    def __call__(self, q):
         """
         Applies the current filter to the given queryset and returns the native queryset.
 
         Arguments:
             q: native queryset.
         """
+
+    @abstractmethod
+    def __or__(self, other):
+        pass
+
+
+class QueryExpression(AbstractFilter):
+    def __init__(self, expr):
+        self.expr = expr
 
 
 class UrlQueryFilter(AbstractFilter):
@@ -69,6 +82,10 @@ class UrlQueryFilter(AbstractFilter):
 
         self._filter_schema = filter_schema
 
+    def __call__(self, q):
+        input_data = self.get_input_data()
+        return self._do_apply(q, input_data)
+
     @abstractmethod
     def _do_apply(self, q, input_data: dict):
         """
@@ -78,10 +95,6 @@ class UrlQueryFilter(AbstractFilter):
             q: native queryset.
             input_data (dict): the input used for filtering.
         """
-
-    def apply_to(self, q):
-        input_data = self.get_input_data()
-        return self._do_apply(q, input_data)
 
     def get_input_data(self) -> dict:
         """Returns the input used for filtering."""
@@ -123,9 +136,9 @@ class AbstractQueryAdapter(metaclass=ABCMeta):
     def exists(self) -> bool:
         """Returns true if a resource with the specified search criteria exists in persistent storage."""
 
-    def filter(self, filter_: AbstractFilter) -> AbstractQueryAdapter:
+    def filter(self, filter_callback):
         """Applies this filter to the current queryset."""
-        self._base_query = filter_.apply_to(self.make_query())
+        self._base_query = filter_callback(self.make_query())
         return self
 
     def filter_by(self, **kwargs) -> AbstractQueryAdapter:
@@ -285,6 +298,15 @@ class AbstractFactory(metaclass=ABCMeta):
     2. creating a resource manager
     3. creating an automatically generated schema
     """
+
+    @abstractmethod
+    def create_model_field_adapter(self, column):
+        """
+        Creates and returns an adapter for a model attribute.
+
+        Arguments:
+            column: native attribute of the model.
+        """
 
     @abstractmethod
     def create_query_adapter(self, base_query) -> AbstractQueryAdapter:
