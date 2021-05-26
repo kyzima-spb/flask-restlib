@@ -478,7 +478,7 @@ class ClientMixin(_ClientMixin):
 
 class TokenMixin(_TokenMixin):
     def get_client_id(self):
-        return self.client_id
+        return self.client.get_client_id()
 
     def get_scope(self):
         return self.scope

@@ -3,7 +3,6 @@ from abc import ABCMeta, abstractmethod
 import copy
 import typing
 
-from flask import abort
 from marshmallow import Schema
 from webargs.flaskparser import parser
 
@@ -141,8 +140,9 @@ class AbstractQueryAdapter(metaclass=ABCMeta):
         self._base_query = filter_callback(self.make_query())
         return self
 
+    @abstractmethod
     def filter_by(self, **kwargs) -> AbstractQueryAdapter:
-        pass
+        """Applies these criteria to the current queryset."""
 
     def first(self) -> typing.Union[typing.Any, None]:
         """
