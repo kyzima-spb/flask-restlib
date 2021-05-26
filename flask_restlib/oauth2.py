@@ -47,7 +47,7 @@ class AuthorizationCodeGrant(grants.AuthorizationCodeGrant):
                 'client': request.client,
                 'redirect_uri': request.redirect_uri,
                 'scope': request.scope,
-                'user': request.user,
+                'user': request.user._get_current_object(),
             })
 
     def query_authorization_code(
@@ -65,6 +65,9 @@ class AuthorizationCodeGrant(grants.AuthorizationCodeGrant):
 
         if authorization_code and not authorization_code.is_expired():
             return authorization_code
+
+        if authorization_code:
+            self.delete_authorization_code(authorization_code)
 
     def delete_authorization_code(
         self,
@@ -155,7 +158,7 @@ class AccessTokenView(MethodView):
 
 class AuthorizeView(MethodView):
     decorators = [login_required]
-    template_name = 'authorize.html'
+    template_name = 'restlib/authorize.html'
 
     def get(self):
         try:
@@ -232,7 +235,7 @@ class OAuth2:
         self.OAuth2Token = token_model
         self.OAuth2Code = authorization_code_model
 
-        self.bp = Blueprint('oauth', __name__)
+        self.bp = Blueprint('oauth', __name__, template_folder='templates')
         self.server = AuthorizationServer()
 
         self.authorize_endpoint = AuthorizeView.as_view('authorize')
