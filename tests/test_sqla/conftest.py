@@ -61,6 +61,14 @@ def factory():
 
 
 @pytest.fixture
+def query_adapter(app, factory):
+    def f(base_query):
+        with app.app_context():
+            yield factory.create_query_adapter(base_query)
+    return f
+
+
+@pytest.fixture
 def resource_manager(app, factory):
     with app.app_context():
         yield factory.create_resource_manager()

@@ -35,22 +35,26 @@ class TestSQLAFactory:
 
 class TestSQLAResourceManager:
     def test_create(self, resource_manager, Genre):
-        with resource_manager as rm:
-            result = rm.create(Genre, {'name': 'Action'})
+        """Tests for creating and saving a new instance in persistent storage."""
+        with resource_manager:
+            result = resource_manager.create(Genre, {'name': 'Action'})
         expected = Genre.query.get(result.id)
         assert result == expected
 
     def test_delete(self, resource_manager, single_genre, Genre):
+        """Tests for deleting a resource from persistent storage."""
         with resource_manager:
             resource_manager.delete(single_genre)
         assert Genre.query.get(single_genre.id) is None
 
     def test_get(self, resource_manager, single_genre, Genre):
+        """Tests for getting a resource from persistent storage."""
         with resource_manager:
             result = resource_manager.get(Genre, single_genre.id)
         assert result == single_genre
 
     def test_update(self, resource_manager, single_genre, Genre):
+        """Tests for updating a resource from persistent storage."""
         with resource_manager:
             result = resource_manager.update(single_genre, {'name': 'Simulator'})
         expected = Genre.query.get(result.id)
