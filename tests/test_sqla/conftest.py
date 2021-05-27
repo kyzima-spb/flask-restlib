@@ -58,3 +58,9 @@ def rest(app):
 @pytest.fixture
 def factory():
     return SQLAFactory()
+
+
+@pytest.fixture
+def resource_manager(app, factory):
+    with app.app_context():
+        yield factory.create_resource_manager()

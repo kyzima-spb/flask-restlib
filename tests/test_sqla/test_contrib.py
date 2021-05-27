@@ -7,6 +7,14 @@ from flask_restlib.contrib.sqla import (
 )
 
 
+@pytest.fixture
+def single_genre(db, Genre):
+    genre = Genre(name='Action')
+    db.session.add(genre)
+    db.session.commit()
+    return genre
+
+
 class TestSQLAFactory:
     def test_create_model_field_adapter(self, factory, Genre):
         """Tests the creation of an adapter for a SQLAlchemy model attribute."""
@@ -26,11 +34,20 @@ class TestSQLAFactory:
 
 
 class TestSQLAResourceManager:
-    def test_create(self, app, db, Genre):
-        with app.app_context():
-            with ResourceManager(db.session) as rm:
-                saved = rm.create(Genre, {
-                    'name': 'Action',
-                })
-            selected = Genre.query.get(saved.id)
-            assert saved == selected
+    def test_create(self, resource_manager, Genre):
+        with resource_manager as rm:
+            saved = rm.create(Genre, {
+                'name': 'Action',
+            })
+        loaded = Genre.query.get(saved.id)
+        assert saved == loaded
+
+    def test_delete(self, resource_manager, single_genre, Genre):
+        with resource_manager:
+            resource_manager.delete(single_genre)
+        assert Genre.query.get(single_genre.id) is None
+
+    def test_get(self, resource_manager, single_genre, Genre):
+        with resource_manager:
+            loaded = resource_manager.get(Genre, single_genre.id)
+        assert loaded == single_genre
