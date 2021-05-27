@@ -36,11 +36,9 @@ class TestSQLAFactory:
 class TestSQLAResourceManager:
     def test_create(self, resource_manager, Genre):
         with resource_manager as rm:
-            saved = rm.create(Genre, {
-                'name': 'Action',
-            })
-        loaded = Genre.query.get(saved.id)
-        assert saved == loaded
+            result = rm.create(Genre, {'name': 'Action'})
+        expected = Genre.query.get(result.id)
+        assert result == expected
 
     def test_delete(self, resource_manager, single_genre, Genre):
         with resource_manager:
@@ -49,5 +47,11 @@ class TestSQLAResourceManager:
 
     def test_get(self, resource_manager, single_genre, Genre):
         with resource_manager:
-            loaded = resource_manager.get(Genre, single_genre.id)
-        assert loaded == single_genre
+            result = resource_manager.get(Genre, single_genre.id)
+        assert result == single_genre
+
+    def test_update(self, resource_manager, single_genre, Genre):
+        with resource_manager:
+            result = resource_manager.update(single_genre, {'name': 'Simulator'})
+        expected = Genre.query.get(result.id)
+        assert result.name == expected.name
