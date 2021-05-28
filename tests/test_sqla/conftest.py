@@ -1,6 +1,7 @@
 from flask import Flask
 from flask_restlib import RestLib
 from flask_restlib.contrib.sqla import SQLAFactory
+from flask_restlib.oauth2 import OAuth2
 from flask_sqlalchemy import SQLAlchemy
 import pytest
 
@@ -51,8 +52,58 @@ def Genre(db):
 
 
 @pytest.fixture
+def User(db):
+    class User(db.Model):
+        id = db.Column(db.Integer, primary_key=True)
+        username = db.Column(db.String(40), nullable=False, unique=True)
+
+        def __repr__(self):
+            return f'{self.__class__.__name__}(name={self.username!r})'
+
+        def get_user_id(self):
+            return self.id
+
+        def check_password(self, password):
+            return password != 'wrong'
+
+        @classmethod
+        def find_by_username(cls, username):
+            return cls.query.filter_by(username=username).first()
+
+    User.__table__.create(db.engine)
+    yield User
+    User.__table__.drop(db.engine)
+
+
+@pytest.fixture
 def rest(app):
     return RestLib(app, factory=SQLAFactory())
+
+
+@pytest.fixture
+def oauth2(app, rest, User):
+    return OAuth2(app, factory=rest.factory, user_model=User)
+
+
+@pytest.fixture
+def OAuth2Client(db, oauth2):
+    oauth2.OAuth2Client.__table__.create(db.engine)
+    yield oauth2.OAuth2Client
+    oauth2.OAuth2Client.__table__.drop(db.engine)
+
+
+@pytest.fixture
+def OAuth2Token(db, oauth2):
+    oauth2.OAuth2Token.__table__.create(db.engine)
+    yield oauth2.OAuth2Token
+    oauth2.OAuth2Token.__table__.drop(db.engine)
+
+
+@pytest.fixture
+def OAuth2Code(db, oauth2):
+    oauth2.OAuth2Code.__table__.create(db.engine)
+    yield oauth2.OAuth2Code
+    oauth2.OAuth2Code.__table__.drop(db.engine)
 
 
 @pytest.fixture
