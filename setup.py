@@ -28,6 +28,7 @@ setup(
     install_requires=[
         'Flask>=1.0',
         'flask-marshmallow>=0.14',
+        'Flask-Login>=0.5',
     ],
     extras_require={
         'sqla': [

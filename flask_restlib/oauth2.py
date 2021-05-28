@@ -12,7 +12,7 @@ from flask import (
     Flask, Blueprint, abort, Response,
     current_app, request
 )
-from flask_login import current_user, login_required
+from flask_login import LoginManager, current_user, login_required
 from flask_restlib import F
 from flask_restlib.core import (
     QueryAdapterType,
@@ -193,7 +193,7 @@ class RevokeTokenView(MethodView):
 
 class OAuth2:
     __slots__ = (
-        'factory', 'bp', 'server',
+        'factory', 'login_manager', 'bp', 'server',
         'OAuth2User', 'OAuth2Client', 'OAuth2Token', 'OAuth2Code',
         'authorize_endpoint', 'access_token_endpoint', 'revoke_token_endpoint',
     )
@@ -234,6 +234,9 @@ class OAuth2:
         self.OAuth2Client = client_model
         self.OAuth2Token = token_model
         self.OAuth2Code = authorization_code_model
+
+        self.login_manager = LoginManager()
+        self.login_manager.user_loader(self.load_user)
 
         self.bp = Blueprint('oauth', __name__, template_folder='templates')
         self.server = AuthorizationServer()
@@ -278,12 +281,18 @@ class OAuth2:
 
         self.server.register_endpoint(RevokeToken)
 
+        self.login_manager.init_app(app)
+
         app.register_blueprint(self.bp, url_prefix=app.config['RESTLIB_OAUTH2_URL_PREFIX'])
 
     @property
     def rm(self) -> ResourceManagerType:
         """Returns a resource manager instance."""
         return self.factory.create_resource_manager()
+
+    def load_user(self, user_id):
+        """Returns user by user_id."""
+        return self.rm.get(self.OAuth2User, user_id)
 
     def query_client(self, client_id: str):
         """Returns client by client_id."""
