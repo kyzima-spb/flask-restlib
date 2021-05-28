@@ -232,19 +232,6 @@ class ClientMixin(_ClientMixin):
         )
 
     @property
-    def client_metadata(self) -> dict:
-        if 'client_metadata' in self.__dict__:
-            return self.__dict__['client_metadata']
-        if self._client_metadata:
-            data = json_loads(self._client_metadata)
-            self.__dict__['client_metadata'] = data
-            return data
-        return {}
-
-    def set_client_metadata(self, value: dict) -> typing.NoReturn:
-        self._client_metadata = json_dumps(value)
-
-    @property
     def redirect_uris(self) -> typing.List[str]:
         """
         Array of redirection URI strings for use in redirect-based flows

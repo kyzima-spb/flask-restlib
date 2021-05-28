@@ -77,12 +77,26 @@ def create_user_reference_mixin(user_model):
 
 class OAuth2ClientMixin(ClientMixin):
     id = sa.Column(
-        sa.String(48), primary_key=True, default=partial(generate_client_id, 48)
+        sa.String(48),
+        primary_key=True,
+        default=partial(generate_client_id, 48)
     )
-    client_secret = sa.Column(sa.String(120), nullable=False, default='')
-    client_id_issued_at = sa.Column(sa.Integer, nullable=False, default=0)
-    client_secret_expires_at = sa.Column(sa.Integer, nullable=False, default=0)
-    _client_metadata = sa.Column('client_metadata', sa.Text)
+    client_secret = sa.Column(
+        sa.String(120),
+        nullable=False,
+        default=''
+    )
+    client_id_issued_at = sa.Column(
+        sa.Integer,
+        nullable=False,
+        default=0
+    )
+    client_secret_expires_at = sa.Column(
+        sa.Integer,
+        nullable=False,
+        default=0
+    )
+    client_metadata = sa.Column(sa.JSON, nullable=False)
 
 
 class OAuth2TokenMixin(_OAuth2TokenMixin, TokenMixin):
