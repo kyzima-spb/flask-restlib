@@ -7,46 +7,31 @@ from flask_marshmallow import Marshmallow
 from werkzeug.exceptions import HTTPException
 from werkzeug.local import LocalProxy
 
-from flask_restlib.core import AbstractFactory
+from flask_restlib.core import (
+    AbstractFactoryType
+)
 from flask_restlib.routing import ApiBlueprint
 from flask_restlib.utils import import_string
 
 
 class RestLib:
     __slots__ = (
-        '_blueprints', '_factory', '_factory_callback', 'ma',
+        '_blueprints', 'factory', 'ma',
     )
 
     def __init__(
         self,
         app: typing.Optional[Flask] = None,
         *,
-        factory: typing.Optional[AbstractFactory] = None
+        factory: AbstractFactoryType,
     ) -> None:
         self._blueprints = []
-        self._factory_callback = None
-        self._factory = factory
+        self.factory = factory
 
         self.ma = Marshmallow()
 
         if app is not None:
             self.init_app(app)
-
-    @property
-    def factory(self) -> AbstractFactory:
-        if self._factory is None:
-            callback = getattr(self, '_factory_callback')
-
-            if callback is None:
-                raise RuntimeError('Missing factory_loader.')
-
-            self._factory = callback()()
-        return self._factory
-
-    def factory_loader(self, callback):
-        """This sets the callback for loading default resource manager."""
-        self._factory_callback = callback
-        return callback
 
     def init_app(self, app: Flask) -> typing.NoReturn:
         self.ma.init_app(app)
