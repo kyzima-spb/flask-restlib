@@ -4,7 +4,7 @@ from typing import ClassVar, Optional
 from uuid import uuid4
 
 from authlib.oauth2 import OAuth2Error
-from authlib.integrations.flask_oauth2 import AuthorizationServer
+from authlib.integrations.flask_oauth2 import AuthorizationServer as _AuthorizationServer
 from authlib.oauth2.rfc6749 import grants
 from authlib.oauth2.rfc6749.wrappers import OAuth2Request
 from authlib.oauth2.rfc7009 import RevocationEndpoint
@@ -153,7 +153,7 @@ class RevokeToken(RevocationEndpoint):
 
 class AccessTokenView(MethodView):
     def post(self):
-        return current_oauth2.server.create_token_response()
+        return current_oauth2.create_token_response()
 
 
 class AuthorizeView(MethodView):
@@ -162,7 +162,7 @@ class AuthorizeView(MethodView):
 
     def get(self):
         try:
-            grant = current_oauth2.server.validate_consent_request(end_user=current_user)
+            grant = current_oauth2.validate_consent_request(end_user=current_user)
         except OAuth2Error as err:
             current_app.logger.error(err.get_body())
             abort(Response(
@@ -179,25 +179,19 @@ class AuthorizeView(MethodView):
         if accept and not decline:
             grant_user = current_user
 
-        return current_oauth2.server.create_authorization_response(
+        return current_oauth2.create_authorization_response(
             grant_user=grant_user
         )
 
 
 class RevokeTokenView(MethodView):
     def post(self):
-        return current_oauth2.server.create_endpoint_response(
+        return current_oauth2.create_endpoint_response(
             RevokeToken.ENDPOINT_NAME
         )
 
 
-class OAuth2:
-    __slots__ = (
-        'factory', 'login_manager', 'bp', 'server',
-        'OAuth2User', 'OAuth2Client', 'OAuth2Token', 'OAuth2Code',
-        'authorize_endpoint', 'access_token_endpoint', 'revoke_token_endpoint',
-    )
-
+class AuthorizationServer(_AuthorizationServer):
     def __init__(
         self,
         app: typing.Optional[Flask] = None,
@@ -206,7 +200,9 @@ class OAuth2:
         user_model: typing.Type,
         client_model: typing.Optional[typing.Type] = None,
         token_model: typing.Optional[typing.Type] = None,
-        authorization_code_model: typing.Optional[typing.Type] = None
+        authorization_code_model: typing.Optional[typing.Type] = None,
+        query_client: typing.Optional[typing.Callable] = None,
+        save_token: typing.Optional[typing.Callable] = None
     ):
         """
         Arguments:
@@ -216,7 +212,17 @@ class OAuth2:
             client_model: OAuth client model class.
             token_model: OAuth token model class.
             authorization_code_model: OAuth code model class.
+            query_client: A function to get client by client_id.
+            save_token: A function to save tokens.
         """
+        if save_token is None:
+            save_token = self._save_token
+
+        if query_client is None:
+            query_client = self._query_client
+
+        super().__init__(save_token=save_token, query_client=query_client)
+
         if client_model is None:
             client_model = factory.create_client_model(user_model)
 
@@ -236,15 +242,13 @@ class OAuth2:
         self.OAuth2Code = authorization_code_model
 
         self.login_manager = LoginManager()
-        self.login_manager.user_loader(self.load_user)
-
-        self.bp = Blueprint('oauth', __name__, template_folder='templates')
-        self.server = AuthorizationServer()
+        self.login_manager.user_loader(self._load_user)
 
         self.authorize_endpoint = AuthorizeView.as_view('authorize')
         self.access_token_endpoint = AccessTokenView.as_view('access_token')
         self.revoke_token_endpoint = RevokeTokenView.as_view('revoke_token')
 
+        self.bp = Blueprint('oauth', __name__, template_folder='templates')
         self.bp.add_url_rule('/authorize', view_func=self.authorize_endpoint)
         self.bp.add_url_rule('/token', view_func=self.access_token_endpoint)
         self.bp.add_url_rule('/revoke', view_func=self.revoke_token_endpoint)
@@ -252,7 +256,15 @@ class OAuth2:
         if app is not None:
             self.init_app(app)
 
-    def init_app(self, app: Flask) -> typing.NoReturn:
+    def init_app(
+        self,
+        app: Flask,
+        *,
+        query_client: typing.Optional[typing.Callable] = None,
+        save_token: typing.Optional[typing.Callable] = None
+    ) -> typing.NoReturn:
+        super().init_app(app, query_client=query_client, save_token=save_token)
+
         app.config.setdefault('RESTLIB_OAUTH2_URL_PREFIX', '/oauth')
         app.config.setdefault('RESTLIB_OAUTH2_AUTHORIZATION_CODE_GRANT', True)
         app.config.setdefault('RESTLIB_OAUTH2_IMPLICIT_GRANT', True)
@@ -262,24 +274,22 @@ class OAuth2:
 
         app.extensions['restlib_oauth2'] = self
 
-        self.server.init_app(app, query_client=self.query_client, save_token=self.save_token)
-
         if app.config['RESTLIB_OAUTH2_AUTHORIZATION_CODE_GRANT']:
-            self.server.register_grant(AuthorizationCodeGrant)
+            self.register_grant(AuthorizationCodeGrant)
 
         if app.config['RESTLIB_OAUTH2_IMPLICIT_GRANT']:
-            self.server.register_grant(grants.ImplicitGrant)
+            self.register_grant(grants.ImplicitGrant)
 
         if app.config['RESTLIB_OAUTH2_RESOURCE_OWNER_GRANT']:
-            self.server.register_grant(PasswordGrant)
+            self.register_grant(PasswordGrant)
 
         if app.config['RESTLIB_OAUTH2_CLIENT_CREDENTIALS_GRANT']:
-            self.server.register_grant(grants.ClientCredentialsGrant)
+            self.register_grant(grants.ClientCredentialsGrant)
 
         if app.config['RESTLIB_OAUTH2_REFRESH_TOKEN_GRANT']:
-            self.server.register_grant(RefreshTokenGrant)
+            self.register_grant(RefreshTokenGrant)
 
-        self.server.register_endpoint(RevokeToken)
+        self.register_endpoint(RevokeToken)
 
         self.login_manager.init_app(app)
 
@@ -290,15 +300,15 @@ class OAuth2:
         """Returns a resource manager instance."""
         return self.factory.create_resource_manager()
 
-    def load_user(self, user_id):
+    def _load_user(self, user_id):
         """Returns user by user_id."""
         return self.rm.get(self.OAuth2User, user_id)
 
-    def query_client(self, client_id: str):
+    def _query_client(self, client_id: str):
         """Returns client by client_id."""
         return self.rm.get(self.OAuth2Client, client_id)
 
-    def save_token(
+    def _save_token(
         self,
         token_data: dict,
         request: OAuth2Request
