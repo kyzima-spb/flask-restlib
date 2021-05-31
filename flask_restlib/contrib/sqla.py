@@ -23,10 +23,8 @@ from flask_restlib.mixins import (
     ClientMixin,
     TokenMixin
 )
-from flask_restlib.utils import (
-    strip_sorting_flag,
-    generate_client_id
-)
+from flask_restlib.oauth2 import generate_client_id
+from flask_restlib.utils import strip_sorting_flag
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.orm import relationship
 from sqlalchemy_utils.types import UUIDType
@@ -326,19 +324,3 @@ class SQLAFactory(AbstractFactory):
                 '__tablename__': 'oauth2_code',
             }
         )
-
-from sqlalchemy.sql.elements import BinaryExpression
-from sqlalchemy.orm.attributes import QueryableAttribute
-
-class AbstractAttribute:
-    def to_native(self, attr):
-        pass
-
-
-class SQLAlchemyAttribute:
-    def __init__(self, attr):
-        self.attr = self.to_native(attr)
-
-    def to_native(self, attr):
-        if isinstance(attr, QueryableAttribute):
-            return attr

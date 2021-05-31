@@ -1,14 +1,27 @@
 from __future__ import annotations
 from abc import ABCMeta, abstractmethod
 import copy
+from datetime import datetime
 import typing
 
+from flask import request, Flask
+from flask_marshmallow import Marshmallow
 from marshmallow import Schema
 from webargs.flaskparser import parser
+from werkzeug.exceptions import HTTPException
 
 from flask_restlib.exceptions import (
-    NoResourcesFound, MultipleResourcesFound
+    NoResourcesFound,
+    MultipleResourcesFound
 )
+from flask_restlib.mixins import (
+    AuthorizationCodeType,
+    ClientType,
+    TokenType,
+    UserType
+)
+from flask_restlib.oauth2 import AuthorizationServer
+from flask_restlib.routing import ApiBlueprint
 
 
 __all__ = (
@@ -349,3 +362,117 @@ class AbstractFactory(metaclass=ABCMeta):
     @abstractmethod
     def create_authorization_code_model(self, user_model, client_model):
         """Creates and returns the OAuth2 code class."""
+
+
+class RestLib:
+    __slots__ = (
+        '_blueprints', 'factory', 'authorization_server', 'ma',
+    )
+
+    def __init__(
+        self,
+        app: typing.Optional[Flask] = None,
+        *,
+        factory: AbstractFactoryType,
+        auth_options: typing.Optional[dict] = None
+    ) -> typing.NoReturn:
+        self._blueprints = []
+
+        self.factory = factory
+        self.authorization_server = None
+        self.ma = Marshmallow()
+
+        if auth_options is not None:
+            self.authorization_server = self._create_authorization_server(**auth_options)
+
+        if app is not None:
+            self.init_app(app)
+
+    def _create_authorization_server(
+        self,
+        user_model: UserType,
+        client_model: typing.Optional[ClientType] = None,
+        token_model: typing.Optional[TokenType] = None,
+        authorization_code_model: typing.Optional[AuthorizationCodeType] = None,
+        query_client: typing.Optional[typing.Callable] = None,
+        save_token: typing.Optional[typing.Callable] = None
+    ):
+        """
+        Arguments:
+            user_model: Reference to the User model class.
+            client_model: OAuth client model class.
+            token_model: OAuth token model class.
+            authorization_code_model: OAuth code model class.
+            query_client: A function to get client by client_id.
+            save_token: A function to save tokens.
+        """
+        if client_model is None:
+            client_model = self.factory.create_client_model(user_model)
+
+        if token_model is None:
+            token_model = self.factory.create_token_model(user_model, client_model)
+
+        if authorization_code_model is None:
+            authorization_code_model = self.factory.create_authorization_code_model(
+                user_model, client_model
+            )
+
+        return AuthorizationServer(
+            user_model=user_model,
+            client_model=client_model,
+            token_model=token_model,
+            authorization_code_model=authorization_code_model,
+            query_client=query_client,
+            save_token=save_token
+        )
+
+    def init_app(self, app: Flask) -> typing.NoReturn:
+        self.ma.init_app(app)
+
+        app.config.setdefault('RESTLIB_PAGINATION_ENABLED', True)
+        app.config.setdefault('RESTLIB_URL_PARAM_LIMIT', 'limit')
+        app.config.setdefault('RESTLIB_URL_PARAM_OFFSET', 'offset')
+        app.config.setdefault('RESTLIB_PAGINATION_LIMIT', 25)
+        app.config.setdefault('RESTLIB_SORTING_ENABLED', True)
+        app.config.setdefault('RESTLIB_URL_PARAM_SORT', 'sort')
+
+        app.extensions['restlib'] = self
+
+        app.register_error_handler(HTTPException, self.http_exception_handler)
+
+        if not hasattr(app.jinja_env, 'install_gettext_callables'):
+            app.jinja_env.add_extension('jinja2.ext.i18n')
+            app.jinja_env.install_null_translations(True)
+
+        if self.authorization_server is not None:
+            self.authorization_server.init_app(app)
+
+    def create_blueprint(self, *args, **kwargs) -> ApiBlueprint:
+        bp = ApiBlueprint(*args, **kwargs)
+        self._blueprints.append(bp)
+        return bp
+
+    def register_blueprints(self, app: Flask) -> None:
+        for bp in self._blueprints:
+            app.register_blueprint(bp)
+
+    def http_exception_handler(self, err: HTTPException):
+        """Return JSON instead if Content-Type application/json for HTTP errors."""
+        resp = {
+            'message': err.description,
+            'status': err.code,
+            'path': request.path,
+            'timestamp': datetime.utcnow().isoformat(),
+        }
+
+        if err.code in (400, 422) and hasattr(err, 'data'): # webargs raise error
+            resp['detail'] = dict(zip(
+                ('location', 'errors'),
+                err.data.get('messages').popitem()
+            ))
+            headers = err.data.get('headers')
+
+            if headers:
+                return resp, err.code, headers
+
+        return resp, err.code

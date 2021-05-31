@@ -1,10 +1,13 @@
 from __future__ import annotations
+import secrets
 import typing
 from typing import ClassVar, Optional
 from uuid import uuid4
 
 from authlib.oauth2 import OAuth2Error
-from authlib.integrations.flask_oauth2 import AuthorizationServer as _AuthorizationServer
+from authlib.integrations.flask_oauth2 import (
+    AuthorizationServer as _AuthorizationServer
+)
 from authlib.oauth2.rfc6749 import grants
 from authlib.oauth2.rfc6749.wrappers import OAuth2Request
 from authlib.oauth2.rfc7009 import RevocationEndpoint
@@ -13,25 +16,34 @@ from flask import (
     current_app, request
 )
 from flask_login import LoginManager, current_user, login_required
-from flask_restlib import F
-from flask_restlib.core import (
-    QueryAdapterType,
-    ResourceManagerType,
-    AbstractFactoryType
-)
 from flask_restlib.mixins import (
     AuthorizationCodeType,
     ClientType,
     TokenType,
     UserType
 )
+from flask_restlib.utils import (
+    F, current_restlib, query_adapter, resource_manager
+)
 from flask_useful.views import MethodView
 from werkzeug.local import LocalProxy
 
 
-current_oauth2: OAuth2 = LocalProxy(
-    lambda: current_app.extensions['restlib_oauth2']
+authorization_server = LocalProxy(
+    lambda: current_restlib.authorization_server
 )
+
+
+def generate_client_id(length: int) -> str:
+    while 1:
+        client_id = secrets.token_hex(length // 2)
+
+        if authorization_server.query_client(client_id) is None:
+            return client_id
+
+
+def generate_client_secret(length: int) -> str:
+    return secrets.token_hex(length // 2)
 
 
 class AuthorizationCodeGrant(grants.AuthorizationCodeGrant):
@@ -40,8 +52,8 @@ class AuthorizationCodeGrant(grants.AuthorizationCodeGrant):
         code: str,
         request: OAuth2Request
     ) -> AuthorizationCodeType:
-        with current_oauth2.rm as rm:
-            return rm.create(current_oauth2.OAuth2Code, {
+        with resource_manager() as rm:
+            return rm.create(authorization_server.OAuth2Code, {
                 'id': uuid4(),
                 'code': code,
                 'client': request.client,
@@ -56,9 +68,7 @@ class AuthorizationCodeGrant(grants.AuthorizationCodeGrant):
         client: ClientType
     ) -> typing.Optional[AuthorizationCodeType]:
         authorization_code = (
-            current_oauth2
-                .factory
-                .create_query_adapter(current_oauth2.OAuth2Code)
+            query_adapter(authorization_server.OAuth2Code)
                 .filter_by(code=code, client=client)
                 .one_or_none()
         )
@@ -73,7 +83,7 @@ class AuthorizationCodeGrant(grants.AuthorizationCodeGrant):
         self,
         authorization_code: AuthorizationCodeType
     ) -> typing.NoReturn:
-        with current_oauth2.rm as rm:
+        with resource_manager() as rm:
             rm.delete(authorization_code)
 
     def authenticate_user(
@@ -89,7 +99,7 @@ class PasswordGrant(grants.ResourceOwnerPasswordCredentialsGrant):
         username: str,
         password: str
     ) -> typing.Optional[UserType]:
-        user = current_oauth2.OAuth2User.find_by_username(username)
+        user = authorization_server.OAuth2User.find_by_username(username)
         if user and user.check_password(password):
             return user
 
@@ -102,9 +112,7 @@ class RefreshTokenGrant(grants.RefreshTokenGrant):
         refresh_token: str
     ) -> Optional[TokenType]:
         item = (
-            current_oauth2
-                .factory
-                .create_query_adapter(current_oauth2.OAuth2Token)
+            query_adapter(authorization_server.OAuth2Token)
                 .filter_by(refresh_token=refresh_token)
                 .one_or_none()
         )
@@ -116,7 +124,7 @@ class RefreshTokenGrant(grants.RefreshTokenGrant):
         return credential.user
 
     def revoke_old_credential(self, credential: TokenType) -> typing.NoReturn:
-        with current_oauth2.rm as rm:
+        with resource_manager() as rm:
             rm.update(credential, {'revoked': True})
 
 
@@ -129,12 +137,7 @@ class RevokeToken(RevocationEndpoint):
     ) -> Optional[TokenType]:
         current_app.logger.debug(f'Revocation token: {token}, type hint: {token_type_hint}')
 
-        q = (
-            current_oauth2
-                .factory
-                .create_query_adapter(current_oauth2.OAuth2Token)
-                .filter_by(client=client)
-        )
+        q = query_adapter(authorization_server.OAuth2Token).filter_by(client=client)
 
         if token_type_hint:
             return q.filter_by(**{token_type_hint: token}).first()
@@ -142,18 +145,18 @@ class RevokeToken(RevocationEndpoint):
         # without token_type_hint
         current_app.logger.debug(f'Supported token types: {self.SUPPORTED_TOKEN_TYPES}')
 
-        token_model = current_oauth2.OAuth2Token
+        token_model = authorization_server.OAuth2Token
         qs = (F(token_model.access_token) == token) | (F(token_model.refresh_token) == token)
         return q.filter(qs).first()
 
     def revoke_token(self, token: TokenType) -> typing.NoReturn:
-        with current_oauth2.rm as rm:
+        with resource_manager() as rm:
             rm.update(token, {'revoked': True})
 
 
 class AccessTokenView(MethodView):
     def post(self):
-        return current_oauth2.create_token_response()
+        return authorization_server.create_token_response()
 
 
 class AuthorizeView(MethodView):
@@ -162,7 +165,7 @@ class AuthorizeView(MethodView):
 
     def get(self):
         try:
-            grant = current_oauth2.validate_consent_request(end_user=current_user)
+            grant = authorization_server.validate_consent_request(end_user=current_user)
         except OAuth2Error as err:
             current_app.logger.error(err.get_body())
             abort(Response(
@@ -179,14 +182,14 @@ class AuthorizeView(MethodView):
         if accept and not decline:
             grant_user = current_user
 
-        return current_oauth2.create_authorization_response(
+        return authorization_server.create_authorization_response(
             grant_user=grant_user
         )
 
 
 class RevokeTokenView(MethodView):
     def post(self):
-        return current_oauth2.create_endpoint_response(
+        return authorization_server.create_endpoint_response(
             RevokeToken.ENDPOINT_NAME
         )
 
@@ -196,18 +199,16 @@ class AuthorizationServer(_AuthorizationServer):
         self,
         app: typing.Optional[Flask] = None,
         *,
-        factory: AbstractFactoryType,
-        user_model: typing.Type,
-        client_model: typing.Optional[typing.Type] = None,
-        token_model: typing.Optional[typing.Type] = None,
-        authorization_code_model: typing.Optional[typing.Type] = None,
+        user_model: UserType,
+        client_model: ClientType,
+        token_model: TokenType,
+        authorization_code_model: AuthorizationCodeType,
         query_client: typing.Optional[typing.Callable] = None,
         save_token: typing.Optional[typing.Callable] = None
     ):
         """
         Arguments:
             app (Flask): Flask application instance that being used.
-            factory (AbstractFactoryType): Factory instance that being used.
             user_model: Reference to the User model class.
             client_model: OAuth client model class.
             token_model: OAuth token model class.
@@ -222,19 +223,6 @@ class AuthorizationServer(_AuthorizationServer):
             query_client = self._query_client
 
         super().__init__(save_token=save_token, query_client=query_client)
-
-        if client_model is None:
-            client_model = factory.create_client_model(user_model)
-
-        if token_model is None:
-            token_model = factory.create_token_model(user_model, client_model)
-
-        if authorization_code_model is None:
-            authorization_code_model = factory.create_authorization_code_model(
-                user_model, client_model
-            )
-
-        self.factory = factory
 
         self.OAuth2User = user_model
         self.OAuth2Client = client_model
@@ -295,18 +283,13 @@ class AuthorizationServer(_AuthorizationServer):
 
         app.register_blueprint(self.bp, url_prefix=app.config['RESTLIB_OAUTH2_URL_PREFIX'])
 
-    @property
-    def rm(self) -> ResourceManagerType:
-        """Returns a resource manager instance."""
-        return self.factory.create_resource_manager()
-
     def _load_user(self, user_id):
         """Returns user by user_id."""
-        return self.rm.get(self.OAuth2User, user_id)
+        return resource_manager().get(self.OAuth2User, user_id)
 
     def _query_client(self, client_id: str):
         """Returns client by client_id."""
-        return self.rm.get(self.OAuth2Client, client_id)
+        return resource_manager().get(self.OAuth2Client, client_id)
 
     def _save_token(
         self,
@@ -314,8 +297,8 @@ class AuthorizationServer(_AuthorizationServer):
         request: OAuth2Request
     ) -> typing.NoReturn:
         """Saves tokens to persistent storage."""
-        with self.rm:
-            self.rm.create(self.OAuth2Token, {
+        with resource_manager() as rm:
+            rm.create(self.OAuth2Token, {
                 'id': uuid4(),
                 'client': request.client,
                 'user': request.user or request.client.user,

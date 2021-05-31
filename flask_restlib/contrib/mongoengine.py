@@ -24,7 +24,7 @@ from flask_restlib.mixins import (
     ClientMixin,
     TokenMixin
 )
-from flask_restlib.utils import generate_client_id
+from flask_restlib.oauth2 import generate_client_id
 
 
 __all__ = (

@@ -3,7 +3,6 @@ from datetime import datetime
 import time
 import typing
 
-from authlib.common.encoding import json_loads, json_dumps
 from authlib.oauth2.rfc6749 import (
     AuthorizationCodeMixin as _AuthorizationCodeMixin,
     ClientMixin as _ClientMixin,
@@ -16,7 +15,6 @@ from webargs import validate as validators
 from webargs.flaskparser import parser
 
 from flask_login import UserMixin as _UserMixin
-from flask_restlib.core import UrlQueryFilter
 from flask_restlib.utils import strip_sorting_flag
 
 
@@ -60,13 +58,13 @@ class ListMixin:
     Mixin for getting all resources from the collection.
 
     Attributes:
-        filter_instance (UrlQueryFilter):
+        filter_instance:
             ...
         limit_param_name (str):
             The name of the URL parameter that specifies the number of collection items per page.
         offset_param_name (str):
             The name of the URL parameter that specifies the offset from the first item in the collection.
-        search_instance (UrlQueryFilter):
+        search_instance:
             ...
         sort_param_name (str):
             The name of the URL parameter that is used for sorting.

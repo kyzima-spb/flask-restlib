@@ -1,13 +1,41 @@
+from __future__ import annotations
 from importlib import import_module
-import secrets
 import re
+
+from flask import current_app
+from werkzeug.local import LocalProxy
+
+# from flask_restlib.core import RestLib
 
 
 __all__ = (
+    'current_restlib', 'F', 'query_adapter', 'resource_manager',
     'camel_to_list', 'camel_to_snake', 'snake_to_camel',
     'strip_sorting_flag',
     'import_string',
 )
+
+
+current_restlib = LocalProxy(lambda: current_app.extensions['restlib'])
+
+
+def F(column):
+    """
+    An adapter for a model attribute.
+
+    Arguments:
+        column: native attribute of the model."""
+    return current_restlib.factory.create_model_field_adapter(column)
+
+
+def query_adapter(base_query):
+    """Creates and returns a queryset for retrieving resources from persistent storage."""
+    return current_restlib.factory.create_query_adapter(base_query)
+
+
+def resource_manager():
+    """Creates and returns a resource manager instance."""
+    return current_restlib.factory.create_resource_manager()
 
 
 def camel_to_list(s, lower=False):
@@ -24,20 +52,6 @@ def camel_to_snake(name):
 def snake_to_camel(name):
     """Converts a snake case string to a camelcase string."""
     return ''.join(name.title().split('_'))
-
-
-def generate_client_id(length: int) -> str:
-    from flask_restlib.oauth2 import current_oauth2
-
-    while 1:
-        client_id = secrets.token_hex(length // 2)
-
-        if current_oauth2.query_client(client_id) is None:
-            return client_id
-
-
-def generate_client_secret(length: int) -> str:
-    return secrets.token_hex(length // 2)
 
 
 def import_string(dotted_path):
