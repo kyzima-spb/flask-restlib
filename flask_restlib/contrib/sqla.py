@@ -28,7 +28,10 @@ from flask_restlib.utils import strip_sorting_flag
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.orm import relationship
 from sqlalchemy_utils.types import UUIDType
-from sqlalchemy_utils.functions import get_primary_keys, get_declarative_base, get_query_entities
+from sqlalchemy_utils.functions import (
+    get_declarative_base,
+    get_primary_keys
+)
 
 
 __all__ = (

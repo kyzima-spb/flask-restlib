@@ -26,13 +26,18 @@ setup(
     include_package_data=True,
     setup_requires=['setuptools_scm'],
     install_requires=[
-        'Flask>=1.0',
-        'flask-marshmallow>=0.14',
+        'Authlib>=0.15',
+        'Flask>=1.0,<2',
         'Flask-Login>=0.5',
+        'flask-marshmallow>=0.14',
+        'flask-useful>=0.1.dev18',
+        'webargs>=8.0',
     ],
     extras_require={
         'sqla': [
+            'SQLAlchemy>=1.3,<1.4',
             'Flask-SQLAlchemy>=2.0',
+            'sqlalchemy-utils>=0.37',
             'marshmallow-sqlalchemy>=0.24',
         ],
         'mongoengine': [
