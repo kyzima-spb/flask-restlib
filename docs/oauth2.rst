@@ -11,7 +11,7 @@ Authorization Code Grant
 
     $ export CLIENT_ID=4d0a829fd95b8ee77893808a91b51171dcc1b36422bbcf61
     $ export CLIENT_SECRET=b536e10d18df0679343c340c626bac6a62cabd72a3a559cfb750c182480873bde67d25ada8e669ae008ed4aae3813dd539744c87697fca54d65003ff
-    $ xdg-open "http://127.0.0.1:8000/oauth/authorize?client_id=${CLIENT_ID}&response_type=code"
+    $ xdg-open "http://127.0.0.1:8000/oauth/authorize?client_id=${CLIENT_ID}&response_type=code&scope=profile"
     $ curl -u ${CLIENT_ID}:${CLIENT_SECRET} \
           -XPOST http://127.0.0.1:8000/oauth/token \
           -F grant_type=authorization_code \
@@ -36,6 +36,7 @@ Resource Owner Password Credentials Grant
     $ curl -u ${CLIENT_ID}:${CLIENT_SECRET} \
           -XPOST http://127.0.0.1:8000/oauth/token \
           -F grant_type=password \
+          -F scope=profile \
           -F username=office@kyzima-spb.com \
           -F password=cdpo123!
 
