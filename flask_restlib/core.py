@@ -4,6 +4,7 @@ import copy
 from datetime import datetime
 import typing
 
+from authlib.integrations.flask_oauth2 import ResourceProtector
 from flask import request, Flask
 from flask_marshmallow import Marshmallow
 from marshmallow import Schema
@@ -20,7 +21,10 @@ from flask_restlib.mixins import (
     TokenType,
     UserType
 )
-from flask_restlib.oauth2 import AuthorizationServer
+from flask_restlib.oauth2 import (
+    AuthorizationServer,
+    BearerTokenValidator
+)
 from flask_restlib.routing import ApiBlueprint
 
 
@@ -366,7 +370,11 @@ class AbstractFactory(metaclass=ABCMeta):
 
 class RestLib:
     __slots__ = (
-        '_blueprints', 'factory', 'authorization_server', 'ma',
+        '_blueprints',
+        'factory',
+        'resource_protector',
+        'authorization_server',
+        'ma',
     )
 
     def __init__(
@@ -379,6 +387,11 @@ class RestLib:
         self._blueprints = []
 
         self.factory = factory
+
+        self.resource_protector = ResourceProtector()
+        # only bearer token is supported currently
+        self.resource_protector.register_token_validator(BearerTokenValidator())
+
         self.authorization_server = None
         self.ma = Marshmallow()
 
@@ -458,6 +471,9 @@ class RestLib:
 
     def http_exception_handler(self, err: HTTPException):
         """Return JSON instead if Content-Type application/json for HTTP errors."""
+        # from authlib.integrations.flask_oauth2.errors import _HTTPException
+        # print(type(err))
+
         resp = {
             'message': err.description,
             'status': err.code,
@@ -475,4 +491,7 @@ class RestLib:
             if headers:
                 return resp, err.code, headers
 
-        return resp, err.code
+        return resp, err.code, {
+            'Cache-Control': 'no-store',
+            'Pragma': 'no-cache',
+        }

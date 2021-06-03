@@ -8,6 +8,11 @@ from flask.views import MethodView
 from flask_restlib import current_restlib
 from flask_restlib import mixins
 from flask_restlib.core import AbstractFactory, AbstractResourceManager
+from flask_restlib.permissions import (
+    Permission,
+    AuthorizationError,
+    AuthenticationError
+)
 
 
 __all__ = (
@@ -34,6 +39,7 @@ class ApiView(MethodView):
     queryset = None
     lookup_names = ()
     model_class = None
+    permissions: list[Permission] = []
     schema_class = None
 
     def get_factory(self) -> AbstractFactory:
@@ -41,6 +47,30 @@ class ApiView(MethodView):
         if self.factory_class is None:
             return current_restlib.factory
         return self.factory_class()
+
+    def check_permissions(self) -> typing.NoReturn:
+        """
+        Check if the request should be permitted.
+        Raises an exception if the request is not permitted.
+        """
+        try:
+            for permission in self.permissions:
+                permission.check_permission(self)
+        except AuthenticationError as err:
+            self.permission_denied(401, err)
+        except AuthorizationError as err:
+            self.permission_denied(403, err)
+
+    def check_resource_permissions(self, resource) -> typing.NoReturn:
+        """
+        Check if the request should be permitted for a given resource.
+        Raises an exception if the request is not permitted.
+        """
+        try:
+            for permission in self.permissions:
+                permission.check_resource_permission(self, resource)
+        except AuthorizationError as err:
+            self.permission_denied(403, err)
 
     def create_queryset(self):
         """
@@ -76,6 +106,8 @@ class ApiView(MethodView):
 
             kwargs['id'] = lookup
 
+        self.check_permissions()
+
         return super().dispatch_request(*args, **kwargs)
 
     def get_model_class(self):
@@ -110,6 +142,8 @@ class ApiView(MethodView):
         if resource is None:
             abort(404, description=description)
 
+        self.check_resource_permissions(resource)
+
         return resource
 
     def get_schema_class(self):
@@ -128,6 +162,10 @@ class ApiView(MethodView):
             )
 
         return self.schema_class
+
+    def permission_denied(self, status_code, err):
+        """Raises an exception if the request is not permitted."""
+        abort(status_code, err.reason)
 
 
 class CreateView(mixins.CreateViewMixin, ApiView):

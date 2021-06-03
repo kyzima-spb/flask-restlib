@@ -10,6 +10,7 @@ from authlib.integrations.flask_oauth2 import (
 )
 from authlib.oauth2.rfc6749 import grants
 from authlib.oauth2.rfc6749.wrappers import OAuth2Request
+from authlib.oauth2.rfc6750 import BearerTokenValidator as _BearerTokenValidator
 from authlib.oauth2.rfc7009 import RevocationEndpoint
 from flask import (
     Flask, Blueprint, abort, Response,
@@ -152,6 +153,21 @@ class RevokeToken(RevocationEndpoint):
     def revoke_token(self, token: TokenType) -> typing.NoReturn:
         with resource_manager() as rm:
             rm.update(token, {'revoked': True})
+
+
+class BearerTokenValidator(_BearerTokenValidator):
+    def authenticate_token(self, token_string):
+        return (
+            query_adapter(authorization_server.OAuth2Token)
+                .filter_by(access_token=token_string)
+                .first()
+        )
+
+    def request_invalid(self, request):
+        return False
+
+    def token_revoked(self, token):
+        return token.revoked
 
 
 class AccessTokenView(MethodView):
