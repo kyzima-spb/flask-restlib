@@ -3,12 +3,15 @@ import typing
 
 from authlib.oauth2 import OAuth2Error
 from authlib.oauth2.rfc6749 import MissingAuthorizationError
+from authlib.integrations.flask_oauth2.resource_protector import ResourceProtector
 from flask_login import current_user
 from flask_restlib import current_restlib
 from flask_restlib.exceptions import AuthenticationError, AuthorizationError
 
 
 class Permission:
+    """A base class from which all permission classes should inherit."""
+
     def check_permission(self, view) -> typing.NoReturn:
         """
         Checks if permission was granted,
@@ -31,12 +34,27 @@ class IsAuthenticated(Permission):
 
 
 class TokenHasScope(Permission):
-    def __init__(self, scope=None, operator='AND', optional=False):
+    """
+    The TokenHasScope permission class allows access
+    when the current access token has been authorized for all the scopes.
+    """
+    def __init__(
+        self,
+        scope: typing.Optional[typing.Union[str, list]] = None,
+        operator: str = 'AND',
+        optional: bool = False
+    ):
+        """
+        Arguments:
+            scope (str|list): string or list of scope values.
+            operator (str): value of "AND" or "OR".
+            optional (bool): allow if no token is given.
+        """
         self.scope = scope
         self.operator = operator
         self.optional = optional
 
-    def get_resource_protector(self):
+    def get_resource_protector(self) -> ResourceProtector:
         return current_restlib.resource_protector
 
     def check_permission(self, view) -> typing.NoReturn:
