@@ -8,11 +8,7 @@ from flask.views import MethodView
 from flask_restlib import current_restlib
 from flask_restlib import mixins
 from flask_restlib.core import AbstractFactory, AbstractResourceManager
-from flask_restlib.permissions import (
-    Permission,
-    AuthorizationError,
-    AuthenticationError
-)
+from flask_restlib.permissions import Permission
 
 
 __all__ = (
@@ -53,24 +49,16 @@ class ApiView(MethodView):
         Check if the request should be permitted.
         Raises an exception if the request is not permitted.
         """
-        try:
-            for permission in self.permissions:
-                permission.check_permission(self)
-        except AuthenticationError as err:
-            self.permission_denied(401, err)
-        except AuthorizationError as err:
-            self.permission_denied(403, err)
+        for permission in self.permissions:
+            permission.check_permission(self)
 
-    def check_resource_permissions(self, resource) -> typing.NoReturn:
+    def check_resource_permissions(self, resource: typing.Any) -> typing.NoReturn:
         """
         Check if the request should be permitted for a given resource.
         Raises an exception if the request is not permitted.
         """
-        try:
-            for permission in self.permissions:
-                permission.check_resource_permission(self, resource)
-        except AuthorizationError as err:
-            self.permission_denied(403, err)
+        for permission in self.permissions:
+            permission.check_resource_permission(self, resource)
 
     def create_queryset(self):
         """
@@ -122,10 +110,10 @@ class ApiView(MethodView):
         return self.model_class
 
     def get_or_404(
-            self,
-            identifier: typing.Union[typing.Any, tuple, dict],
-            description: typing.Optional[str] = None,
-            model_class: typing.Optional[typing.Any] = None
+        self,
+        identifier: typing.Union[typing.Any, tuple, dict],
+        description: typing.Optional[str] = None,
+        model_class: typing.Optional[typing.Any] = None
     ) -> typing.Any:
         """
         Returns a resource based on the given identifier, throws an HTTP 404 error.
@@ -162,10 +150,6 @@ class ApiView(MethodView):
             )
 
         return self.schema_class
-
-    def permission_denied(self, status_code, err):
-        """Raises an exception if the request is not permitted."""
-        abort(status_code, str(err))
 
 
 class CreateView(mixins.CreateViewMixin, ApiView):
