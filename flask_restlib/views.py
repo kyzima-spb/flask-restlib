@@ -165,7 +165,7 @@ class ApiView(MethodView):
 
     def permission_denied(self, status_code, err):
         """Raises an exception if the request is not permitted."""
-        abort(status_code, err.reason)
+        abort(status_code, str(err))
 
 
 class CreateView(mixins.CreateViewMixin, ApiView):

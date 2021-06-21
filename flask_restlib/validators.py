@@ -4,7 +4,7 @@ from marshmallow.validate import (
     NoneOf, OneOf, ContainsOnly, ContainsNoneOf
 )
 
-from flask_restlib import current_restlib
+from flask_restlib import current_restlib, query_adapter
 
 
 __all__ = (
@@ -41,10 +41,10 @@ class ExistsEntity(Validator):
         self.error = error or self.default_message
 
     def __call__(self, *values):
-        resource_manager = self.resource_manager or current_restlib.ResourceManager(self.model_class)
         criteria = dict(zip(self.fields, values))
+        q = query_adapter(self.model_class).filter_by(**criteria)
 
-        if not resource_manager.exists(criteria):
+        if not q.exists():
             value = ', '.join(f'{n}={v}' for n, v in criteria.items())
             raise ValidationError(self.error.format(value=value))
 
@@ -91,9 +91,9 @@ class UniqueEntity(Validator):
                     break
 
         if not is_valid:
-            resource_manager = self.resource_manager or current_restlib.ResourceManager(self.model_class)
             criteria = dict(zip(self.fields, values))
+            q = query_adapter(self.model_class).filter_by(**criteria)
 
-            if resource_manager.exists(criteria):
+            if q.exists():
                 value = ', '.join(f'{n}={v}' for n, v in criteria.items())
                 raise ValidationError(self.error.format(value=value))

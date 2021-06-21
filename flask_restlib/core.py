@@ -1,7 +1,9 @@
 from __future__ import annotations
 from abc import ABCMeta, abstractmethod
 import copy
+import dataclasses
 from datetime import datetime
+from functools import partial
 import typing
 
 from authlib.integrations.flask_oauth2 import ResourceProtector
@@ -9,12 +11,9 @@ from flask import request, Flask
 from flask_marshmallow import Marshmallow
 from marshmallow import Schema
 from webargs.flaskparser import parser
-from werkzeug.exceptions import HTTPException
+from werkzeug.exceptions import HTTPException, default_exceptions
 
-from flask_restlib.exceptions import (
-    NoResourcesFound,
-    MultipleResourcesFound
-)
+from flask_restlib import exceptions
 from flask_restlib.mixins import (
     AuthorizationCodeType,
     ClientType,
@@ -26,6 +25,7 @@ from flask_restlib.oauth2 import (
     BearerTokenValidator
 )
 from flask_restlib.routing import ApiBlueprint
+from flask_restlib.types import CatchExceptionCallable
 
 
 __all__ = (
@@ -34,6 +34,9 @@ __all__ = (
     'AbstractFactory',
     'AbstractFilter',
 )
+
+
+DEFAULT_HTTP_ERROR_STATUS = 400
 
 
 QueryAdapterType = typing.TypeVar('QueryAdapterType', bound='AbstractQueryAdapter')
@@ -181,13 +184,13 @@ class AbstractQueryAdapter(metaclass=ABCMeta):
         """Return exactly one result or raise an exception."""
         try:
             result = self.one_or_none()
-        except MultipleResourcesFound as err:
-            raise MultipleResourcesFound(
+        except exceptions.MultipleResourcesFound as err:
+            raise exceptions.MultipleResourcesFound(
                 f"Multiple rows were found for `{self.__class__.__name__}.one()`."
             ) from err
         else:
             if result is None:
-                raise NoResourcesFound(
+                raise exceptions.NoResourcesFound(
                     f'No row was found for `{self.__class__.__name__}.one()`.'
                 )
             return result
@@ -204,7 +207,7 @@ class AbstractQueryAdapter(metaclass=ABCMeta):
             return None
 
         if found > 1:
-            raise MultipleResourcesFound(
+            raise exceptions.MultipleResourcesFound(
                 f"Multiple rows were found for `{self.__class__.__name__}.one_or_none()`."
             )
 
@@ -368,9 +371,36 @@ class AbstractFactory(metaclass=ABCMeta):
         """Creates and returns the OAuth2 code class."""
 
 
+@dataclasses.dataclass
+class ErrorResponse:
+    """REST API response object on errors."""
+
+    message: str
+    status: int = DEFAULT_HTTP_ERROR_STATUS
+    detail: typing.Optional[typing.Union[dict, list]] = None
+    headers: dict = dataclasses.field(default_factory=dict, repr=False)
+    path: str = dataclasses.field(init=False, repr=False)
+    timestamp: str = dataclasses.field(init=False, repr=False)
+
+    def __post_init__(self) -> typing.NoReturn:
+        self.headers.setdefault('Cache-Control', 'no-store')
+        self.headers.setdefault('Pragma', 'no-cache')
+
+        self.path = request.path
+        self.timestamp = datetime.utcnow().isoformat()
+
+    def to_dict(self, exclude: typing.Optional[tuple] = None) -> dict:
+        def factory(items):
+            return {k: v for k, v in items if k not in exclude}
+        exclude = exclude or ('headers',)
+        return dataclasses.asdict(self, dict_factory=factory)
+
+
 class RestLib:
     __slots__ = (
         '_blueprints',
+        '_deferred_error_handlers',
+        'app',
         'factory',
         'resource_protector',
         'authorization_server',
@@ -385,7 +415,9 @@ class RestLib:
         auth_options: typing.Optional[dict] = None
     ) -> typing.NoReturn:
         self._blueprints = []
+        self._deferred_error_handlers = {}
 
+        self.app = app
         self.factory = factory
 
         self.resource_protector = ResourceProtector()
@@ -397,6 +429,13 @@ class RestLib:
 
         if auth_options is not None:
             self.authorization_server = self._create_authorization_server(**auth_options)
+
+        self.catch_exception(exceptions.RestlibError, callback=self.handle_api_exception)
+        self.catch_exception(exceptions.AuthenticationError, 401, self.handle_api_exception)
+        self.catch_exception(exceptions.AuthorizationError, 403, self.handle_api_exception)
+        self.catch_exception(exceptions.DuplicateResource, 409, self.handle_api_exception)
+        self.catch_exception(exceptions.LogicalError, 422, self.handle_api_exception)
+        self.catch_exception(HTTPException, callback=self.handle_http_exception)
 
         if app is not None:
             self.init_app(app)
@@ -439,6 +478,48 @@ class RestLib:
             save_token=save_token
         )
 
+    def _exception_handler(
+        self,
+        err: Exception,
+        status_code: int,
+        callback: typing.Optional[CatchExceptionCallable] = None
+    ):
+        """
+        Handler for all uncaught exceptions.
+
+        Arguments:
+            err (Exception): an instance of the raised exception.
+            status_code (int): HTTP response code.
+            callback: custom exception handler.
+        """
+        resp = ErrorResponse(str(err), status_code)
+
+        if callback is not None:
+            callback(err, resp)
+
+        return resp.to_dict(), status_code, resp.headers
+
+    def catch_exception(
+        self,
+        exc_type: typing.Type[Exception],
+        status_code: typing.Optional[int] = DEFAULT_HTTP_ERROR_STATUS,
+        callback: typing.Optional[CatchExceptionCallable] = None
+    ) -> typing.NoReturn:
+        """
+        Catch and handle all exceptions of this type.
+
+        Arguments:
+            exc_type: the type of exception to catch.
+            status_code (int): HTTP response code, defaults to 400.
+            callback: custom exception handler.
+        """
+        handler = partial(self._exception_handler, status_code=status_code, callback=callback)
+
+        if self.app is not None:
+            self.app.register_error_handler(exc_type, handler)
+        else:
+            self._deferred_error_handlers[exc_type] = handler
+
     def init_app(self, app: Flask) -> typing.NoReturn:
         self.ma.init_app(app)
 
@@ -451,7 +532,8 @@ class RestLib:
 
         app.extensions['restlib'] = self
 
-        app.register_error_handler(HTTPException, self.http_exception_handler)
+        for exc_type, handler in self._deferred_error_handlers.items():
+            app.register_error_handler(exc_type, handler)
 
         if not hasattr(app.jinja_env, 'install_gettext_callables'):
             app.jinja_env.add_extension('jinja2.ext.i18n')
@@ -469,29 +551,49 @@ class RestLib:
         for bp in self._blueprints:
             app.register_blueprint(bp)
 
-    def http_exception_handler(self, err: HTTPException):
-        """Return JSON instead if Content-Type application/json for HTTP errors."""
-        # from authlib.integrations.flask_oauth2.errors import _HTTPException
-        # print(type(err))
+    def handle_api_exception(
+        self,
+        err: exceptions.RestlibError,
+        resp: ErrorResponse
+    ) -> typing.NoReturn:
+        """Handle an API exception."""
+        message = err.get_message()
 
-        resp = {
-            'message': err.description,
-            'status': err.code,
-            'path': request.path,
-            'timestamp': datetime.utcnow().isoformat(),
-        }
+        if message is None and resp.status in default_exceptions:
+            message = default_exceptions.get(resp.status).description
 
-        if err.code in (400, 422) and hasattr(err, 'data'): # webargs raise error
-            resp['detail'] = dict(zip(
-                ('location', 'errors'),
-                err.data.get('messages').popitem()
-            ))
-            headers = err.data.get('headers')
+        resp.message = message
+        resp.detail = err.get_detail()
 
-            if headers:
-                return resp, err.code, headers
+    def handle_http_exception(self, err: HTTPException, resp: ErrorResponse) -> typing.NoReturn:
+        """Handle an HTTP exception."""
+        if err.code in (400, 422) and hasattr(err, 'data') and hasattr(err, 'exc'):
+            # webargs raise error
+            data = err.data.get('messages', {})
+            detail = [{'location': k, 'errors': v} for k, v in data.items()]
 
-        return resp, err.code, {
-            'Cache-Control': 'no-store',
-            'Pragma': 'no-cache',
-        }
+            if len(detail) == 1:
+                detail = detail[0]
+
+            resp.detail = detail
+            resp.headers.update(err.data.get('headers') or {})
+
+        resp.message = err.description
+        resp.status = err.code
+
+    def register_exception_handler(
+        self,
+        exc_type: typing.Type[Exception],
+        status_code: typing.Optional[int] = DEFAULT_HTTP_ERROR_STATUS
+    ):
+        """
+        The decorator registers the function as a handler for given type of exception.
+
+        Arguments:
+            exc_type: the type of exception to catch.
+            status_code (int): HTTP response code, defaults to 400.
+        """
+        def decorator(callback):
+            self.catch_exception(exc_type, status_code, callback)
+            return callback
+        return decorator

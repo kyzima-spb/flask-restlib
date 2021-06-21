@@ -490,7 +490,7 @@ class UserMixin(_UserMixin):
         raise NotImplementedError
 
     def check_password(self, password):
-        """Returns true if the password is valid, false otherwise. """
+        """Returns true if the password is valid, false otherwise."""
         raise NotImplementedError
 
     @classmethod
