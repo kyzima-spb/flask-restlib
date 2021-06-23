@@ -229,7 +229,7 @@ class ResourceManager(AbstractResourceManager):
             return resource
         self.session.bulk_insert_mappings(model_class, data)
 
-    def delete(self, resource: typing.Any) -> typing.NoReturn:
+    def delete(self, resource: typing.Any) -> None:
         self.session.delete(resource)
 
     def get(

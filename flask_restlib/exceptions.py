@@ -2,22 +2,31 @@ import typing as t
 
 
 class RestlibError(Exception):
-    default_message = None
+    default_message: t.ClassVar[t.Optional[str]] = None
 
     def __init__(
         self,
         message: t.Optional[str] = None,
-        detail: t.Optional[t.Union[dict, list]] = None
-    ) -> t.NoReturn:
-        self._message = message
-        self._detail = detail
+        detail: t.Optional[dict] = None
+    ) -> None:
+        message = message or self.default_message
+
+        if not message:
+            raise ValueError(
+                'You must assign a value to the `message` argument, '
+                f'or override the `{self.__class__.__name__}.default_message` attribute.'
+            )
+
         super().__init__(message)
 
-    def get_detail(self) -> t.Union[dict, list]:
+        self._message = message
+        self._detail = detail or {}
+
+    def get_detail(self) -> dict:
         return self._detail
 
     def get_message(self) -> str:
-        return self._message or self.default_message
+        return self._message
 
 
 class MultipleResourcesFound(RestlibError):
@@ -44,8 +53,8 @@ class AuthorizationError(RestlibError):
         self,
         message: t.Optional[str] = None,
         resource: t.Optional[t.Any] = None,
-        detail: t.Optional[t.Union[dict, list]] = None
-    ) -> t.NoReturn:
+        detail: t.Optional[dict] = None
+    ) -> None:
         super().__init__(message, detail)
         self.resource = resource
 

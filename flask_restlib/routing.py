@@ -1,6 +1,11 @@
+"""
+1. Использовать Blueprint для разных версий и для одной
+   Позволяет избежать проблем именования endpoint-ов
+"""
 from __future__ import annotations
 import re
-from typing import Iterable
+from collections.abc import Iterable
+import typing as t
 
 from flask import Blueprint
 from flask.views import View
@@ -64,7 +69,7 @@ class Route:
             self.__class__.__name__, self.get_rule(), self.endpoint
         )
 
-    def iter_rules(self) -> Iterable[str, str, View]:
+    def iter_rules(self) -> Iterable[tuple[str, str, View]]:
         """
         Returns an iterator,
         each element of which is a tuple of argument values
@@ -115,7 +120,7 @@ class Route:
 
     def get_rule(self) -> str:
         """Returns the URL rule as a string."""
-        rule = []
+        rule: list[str] = []
 
         if self.has_parent():
             parent_rule = self._parent.get_rule()

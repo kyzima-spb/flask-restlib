@@ -1,5 +1,5 @@
 from __future__ import annotations
-import typing
+import typing as t
 
 from authlib.oauth2 import OAuth2Error
 from authlib.oauth2.rfc6749 import MissingAuthorizationError
@@ -12,13 +12,13 @@ from flask_restlib.exceptions import AuthenticationError, AuthorizationError
 class Permission:
     """A base class from which all permission classes should inherit."""
 
-    def check_permission(self, view) -> typing.NoReturn:
+    def check_permission(self, view) -> None:
         """
         Checks if permission was granted,
         otherwise raises `AuthorizationError` or `AuthenticationError`.
         """
 
-    def check_resource_permission(self, view, resource) -> typing.NoReturn:
+    def check_resource_permission(self, view, resource) -> None:
         """
         Checks if permission for the object was granted,
         otherwise raises `AuthorizationError`.
@@ -28,7 +28,7 @@ class Permission:
 class IsAuthenticated(Permission):
     """Allows access only to authenticated users."""
 
-    def check_permission(self, view) -> typing.NoReturn:
+    def check_permission(self, view) -> None:
         if not current_user.is_authenticated:
             raise AuthenticationError
 
@@ -40,7 +40,7 @@ class TokenHasScope(Permission):
     """
     def __init__(
         self,
-        scope: typing.Optional[typing.Union[str, list]] = None,
+        scope: t.Optional[t.Union[str, list]] = None,
         operator: str = 'AND',
         optional: bool = False
     ):
@@ -57,7 +57,7 @@ class TokenHasScope(Permission):
     def get_resource_protector(self) -> ResourceProtector:
         return current_restlib.resource_protector
 
-    def check_permission(self, view) -> typing.NoReturn:
+    def check_permission(self, view) -> None:
         try:
             self.get_resource_protector().acquire_token(
                 self.scope, self.operator

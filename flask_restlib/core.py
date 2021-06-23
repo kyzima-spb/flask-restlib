@@ -1,17 +1,16 @@
 from __future__ import annotations
 from abc import ABCMeta, abstractmethod
 import copy
-import dataclasses
-from datetime import datetime
+
 from functools import partial
-import typing
+import typing as t
 
 from authlib.integrations.flask_oauth2 import ResourceProtector
-from flask import request, Flask
+from flask import Flask, Blueprint
 from flask_marshmallow import Marshmallow
 from marshmallow import Schema
 from webargs.flaskparser import parser
-from werkzeug.exceptions import HTTPException, default_exceptions
+from werkzeug.exceptions import HTTPException
 
 from flask_restlib import exceptions
 from flask_restlib.mixins import (
@@ -25,7 +24,7 @@ from flask_restlib.oauth2 import (
     BearerTokenValidator
 )
 from flask_restlib.routing import ApiBlueprint
-from flask_restlib.types import CatchExceptionCallable
+from flask_restlib.types import ErrorResponse, CatchExceptionCallable
 
 
 __all__ = (
@@ -39,9 +38,9 @@ __all__ = (
 DEFAULT_HTTP_ERROR_STATUS = 400
 
 
-QueryAdapterType = typing.TypeVar('QueryAdapterType', bound='AbstractQueryAdapter')
-ResourceManagerType = typing.TypeVar('ResourceManagerType', bound='AbstractResourceManager')
-AbstractFactoryType = typing.TypeVar('AbstractFactoryType', bound='AbstractFactory')
+QueryAdapterType = t.TypeVar('QueryAdapterType', bound='AbstractQueryAdapter')
+ResourceManagerType = t.TypeVar('ResourceManagerType', bound='AbstractResourceManager')
+AbstractFactoryType = t.TypeVar('AbstractFactoryType', bound='AbstractFactory')
 
 
 class AbstractFilter(metaclass=ABCMeta):
@@ -87,7 +86,7 @@ class UrlQueryFilter(AbstractFilter):
     GET /users?q=Admin
     """
 
-    def __init__(self, filter_schema: typing.Union[type, Schema]):
+    def __init__(self, filter_schema: t.Union[type, Schema]):
         """
         Arguments:
             filter_schema (type|Schema):
@@ -123,11 +122,12 @@ class UrlQueryFilter(AbstractFilter):
 class AbstractQueryAdapter(metaclass=ABCMeta):
     __slots__ = (
         '_base_query',
-        '_limit', '_offset',
+        '_limit',
+        '_offset',
         '_order_by',
     )
 
-    def __init__(self, base_query) -> typing.NoReturn:
+    def __init__(self, base_query) -> None:
         """
         Arguments:
             base_query: native queryset or a reference to the model class.
@@ -136,9 +136,9 @@ class AbstractQueryAdapter(metaclass=ABCMeta):
             base_query = base_query.make_query()
 
         self._base_query = base_query
-        self._limit = None
-        self._offset = None
-        self._order_by = []
+        self._limit: t.Optional[int] = None
+        self._offset: t.Optional[int] = None
+        self._order_by: list[t.Iterable] = [] # fixme: уточнить тип
 
     def __iter__(self):
         yield from self.all()
@@ -164,7 +164,7 @@ class AbstractQueryAdapter(metaclass=ABCMeta):
     def filter_by(self, **kwargs) -> AbstractQueryAdapter:
         """Applies these criteria to the current queryset."""
 
-    def first(self) -> typing.Union[typing.Any, None]:
+    def first(self) -> t.Union[t.Any, None]:
         """
         Return the first result of this query or None if the result doesn’t contain any row.
         """
@@ -177,10 +177,10 @@ class AbstractQueryAdapter(metaclass=ABCMeta):
         return self
 
     @abstractmethod
-    def make_query(self) -> typing.Any:
+    def make_query(self) -> t.Any:
         """Creates and returns a native query object."""
 
-    def one(self) -> typing.Any:
+    def one(self) -> t.Any:
         """Return exactly one result or raise an exception."""
         try:
             result = self.one_or_none()
@@ -195,7 +195,7 @@ class AbstractQueryAdapter(metaclass=ABCMeta):
                 )
             return result
 
-    def one_or_none(self) -> typing.Union[typing.Any, None]:
+    def one_or_none(self) -> t.Optional[t.Any]:
         """
         Return at most one result or raise an exception.
         Returns None if the query selects no rows.
@@ -221,7 +221,7 @@ class AbstractQueryAdapter(metaclass=ABCMeta):
     def order_by(
         self,
         column: str,
-        *columns: typing.Tuple[str]
+        *columns: t.Tuple[str]
     ) -> AbstractQueryAdapter:
         """Applies sorting by attribute."""
         self._order_by.append((column, *columns))
@@ -245,9 +245,9 @@ class AbstractResourceManager(metaclass=ABCMeta):
     @abstractmethod
     def create(
         self,
-        model_class: typing.Any,
-        data: typing.Union[dict, typing.List[dict]]
-    ) -> typing.Any:
+        model_class: t.Any,
+        data: t.Union[dict, t.List[dict]]
+    ) -> t.Any:
         """
         Creates and returns a new instance of the resource filled with data.
 
@@ -257,7 +257,7 @@ class AbstractResourceManager(metaclass=ABCMeta):
         """
 
     @abstractmethod
-    def delete(self, resource: typing.Any) -> typing.NoReturn:
+    def delete(self, resource: t.Any) -> None:
         """
         Removes the resource from the persistent storage.
 
@@ -268,9 +268,9 @@ class AbstractResourceManager(metaclass=ABCMeta):
     @abstractmethod
     def get(
         self,
-        model_class: type,
-        identifier: typing.Union[typing.Any, tuple, dict]
-    ) -> typing.Union[typing.Any, None]:
+        model_class: t.Type[t.Any],
+        identifier: t.Union[t.Any, tuple, dict]
+    ) -> t.Optional[t.Any]:
         """
         Returns a resource based on the given identifier, or None if not found.
 
@@ -281,9 +281,9 @@ class AbstractResourceManager(metaclass=ABCMeta):
 
     def populate_obj(
         self,
-        resource: typing.Any,
+        resource: t.Any,
         attributes: dict
-    ) -> typing.NoReturn:
+    ) -> None:
         """
         Populates the attributes of the given resource with data from the given attributes argument.
 
@@ -297,9 +297,9 @@ class AbstractResourceManager(metaclass=ABCMeta):
     @abstractmethod
     def update(
         self,
-        resource: typing.Any,
+        resource: t.Any,
         attributes: dict
-    ) -> typing.Any:
+    ) -> t.Any:
         """
         Updates the resource with the values of the passed attributes.
 
@@ -371,31 +371,6 @@ class AbstractFactory(metaclass=ABCMeta):
         """Creates and returns the OAuth2 code class."""
 
 
-@dataclasses.dataclass
-class ErrorResponse:
-    """REST API response object on errors."""
-
-    message: str
-    status: int = DEFAULT_HTTP_ERROR_STATUS
-    detail: typing.Optional[typing.Union[dict, list]] = None
-    headers: dict = dataclasses.field(default_factory=dict, repr=False)
-    path: str = dataclasses.field(init=False, repr=False)
-    timestamp: str = dataclasses.field(init=False, repr=False)
-
-    def __post_init__(self) -> typing.NoReturn:
-        self.headers.setdefault('Cache-Control', 'no-store')
-        self.headers.setdefault('Pragma', 'no-cache')
-
-        self.path = request.path
-        self.timestamp = datetime.utcnow().isoformat()
-
-    def to_dict(self, exclude: typing.Optional[tuple] = None) -> dict:
-        def factory(items):
-            return {k: v for k, v in items if k not in exclude}
-        exclude = exclude or ('headers',)
-        return dataclasses.asdict(self, dict_factory=factory)
-
-
 class RestLib:
     __slots__ = (
         '_blueprints',
@@ -409,13 +384,13 @@ class RestLib:
 
     def __init__(
         self,
-        app: typing.Optional[Flask] = None,
+        app: t.Optional[Flask] = None,
         *,
         factory: AbstractFactoryType,
-        auth_options: typing.Optional[dict] = None
-    ) -> typing.NoReturn:
-        self._blueprints = []
-        self._deferred_error_handlers = {}
+        auth_options: t.Optional[dict] = None
+    ) -> None:
+        self._blueprints: list[Blueprint] = []
+        self._deferred_error_handlers: dict[t.Type[Exception], CatchExceptionCallable] = {}
 
         self.app = app
         self.factory = factory
@@ -443,11 +418,11 @@ class RestLib:
     def _create_authorization_server(
         self,
         user_model: UserType,
-        client_model: typing.Optional[ClientType] = None,
-        token_model: typing.Optional[TokenType] = None,
-        authorization_code_model: typing.Optional[AuthorizationCodeType] = None,
-        query_client: typing.Optional[typing.Callable] = None,
-        save_token: typing.Optional[typing.Callable] = None
+        client_model: t.Optional[ClientType] = None,
+        token_model: t.Optional[TokenType] = None,
+        authorization_code_model: t.Optional[AuthorizationCodeType] = None,
+        query_client: t.Optional[t.Callable] = None,
+        save_token: t.Optional[t.Callable] = None
     ):
         """
         Arguments:
@@ -482,7 +457,7 @@ class RestLib:
         self,
         err: Exception,
         status_code: int,
-        callback: typing.Optional[CatchExceptionCallable] = None
+        callback: t.Optional[CatchExceptionCallable] = None
     ):
         """
         Handler for all uncaught exceptions.
@@ -501,10 +476,10 @@ class RestLib:
 
     def catch_exception(
         self,
-        exc_type: typing.Type[Exception],
-        status_code: typing.Optional[int] = DEFAULT_HTTP_ERROR_STATUS,
-        callback: typing.Optional[CatchExceptionCallable] = None
-    ) -> typing.NoReturn:
+        exc_type: t.Type[Exception],
+        status_code: int = DEFAULT_HTTP_ERROR_STATUS,
+        callback: t.Optional[CatchExceptionCallable] = None
+    ) -> None:
         """
         Catch and handle all exceptions of this type.
 
@@ -520,7 +495,7 @@ class RestLib:
         else:
             self._deferred_error_handlers[exc_type] = handler
 
-    def init_app(self, app: Flask) -> typing.NoReturn:
+    def init_app(self, app: Flask) -> None:
         self.ma.init_app(app)
 
         app.config.setdefault('RESTLIB_PAGINATION_ENABLED', True)
@@ -555,36 +530,40 @@ class RestLib:
         self,
         err: exceptions.RestlibError,
         resp: ErrorResponse
-    ) -> typing.NoReturn:
+    ) -> None:
         """Handle an API exception."""
-        message = err.get_message()
-
-        if message is None and resp.status in default_exceptions:
-            message = default_exceptions.get(resp.status).description
-
-        resp.message = message
+        resp.message = err.get_message()
         resp.detail = err.get_detail()
 
-    def handle_http_exception(self, err: HTTPException, resp: ErrorResponse) -> typing.NoReturn:
+    def handle_http_exception(self, err: HTTPException, resp: ErrorResponse) -> None:
         """Handle an HTTP exception."""
         if err.code in (400, 422) and hasattr(err, 'data') and hasattr(err, 'exc'):
             # webargs raise error
-            data = err.data.get('messages', {})
-            detail = [{'location': k, 'errors': v} for k, v in data.items()]
+            messages = err.data.get('messages')
 
-            if len(detail) == 1:
-                detail = detail[0]
+            if messages is None:
+                location, errors = None, ['Invalid request.']
+            elif len(messages) == 1:
+                location, errors = messages.popitem()
+            else:
+                assert False, 'webargs found errors for more then one location.'
 
-            resp.detail = detail
+            resp.detail = {
+                'location': location,
+                'errors': errors,
+            }
             resp.headers.update(err.data.get('headers') or {})
 
-        resp.message = err.description
-        resp.status = err.code
+        if err.code is not None:
+            resp.status = err.code
+
+        if err.description is not None:
+            resp.message = err.description
 
     def register_exception_handler(
         self,
-        exc_type: typing.Type[Exception],
-        status_code: typing.Optional[int] = DEFAULT_HTTP_ERROR_STATUS
+        exc_type: t.Type[Exception],
+        status_code: t.Optional[int] = DEFAULT_HTTP_ERROR_STATUS
     ):
         """
         The decorator registers the function as a handler for given type of exception.

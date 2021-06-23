@@ -1,6 +1,7 @@
 from __future__ import annotations
 import secrets
 import typing
+import typing as t
 from typing import ClassVar, Optional
 from uuid import uuid4
 
@@ -67,7 +68,7 @@ class AuthorizationCodeGrant(grants.AuthorizationCodeGrant):
         self,
         code: str,
         client: ClientType
-    ) -> typing.Optional[AuthorizationCodeType]:
+    ) -> t.Optional[AuthorizationCodeType]:
         authorization_code = (
             query_adapter(authorization_server.OAuth2Code)
                 .filter_by(code=code, client=client)
@@ -80,10 +81,12 @@ class AuthorizationCodeGrant(grants.AuthorizationCodeGrant):
         if authorization_code:
             self.delete_authorization_code(authorization_code)
 
+        return None
+
     def delete_authorization_code(
         self,
         authorization_code: AuthorizationCodeType
-    ) -> typing.NoReturn:
+    ) -> None:
         with resource_manager() as rm:
             rm.delete(authorization_code)
 
@@ -99,19 +102,20 @@ class PasswordGrant(grants.ResourceOwnerPasswordCredentialsGrant):
         self,
         username: str,
         password: str
-    ) -> typing.Optional[UserType]:
+    ) -> t.Optional[UserType]:
         user = authorization_server.OAuth2User.find_by_username(username)
         if user and user.check_password(password):
             return user
+        return None
 
 
 class RefreshTokenGrant(grants.RefreshTokenGrant):
-    INCLUDE_NEW_REFRESH_TOKEN: ClassVar[bool] = True
+    INCLUDE_NEW_REFRESH_TOKEN: t.ClassVar[bool] = True
 
     def authenticate_refresh_token(
         self,
         refresh_token: str
-    ) -> Optional[TokenType]:
+    ) -> t.Optional[TokenType]:
         item = (
             query_adapter(authorization_server.OAuth2Token)
                 .filter_by(refresh_token=refresh_token)
@@ -121,10 +125,12 @@ class RefreshTokenGrant(grants.RefreshTokenGrant):
         if item and item.is_refresh_token_valid():
             return item
 
+        return None
+
     def authenticate_user(self, credential: TokenType) -> UserType:
         return credential.user
 
-    def revoke_old_credential(self, credential: TokenType) -> typing.NoReturn:
+    def revoke_old_credential(self, credential: TokenType) -> None:
         with resource_manager() as rm:
             rm.update(credential, {'revoked': True})
 
@@ -150,7 +156,7 @@ class RevokeToken(RevocationEndpoint):
         qs = (F(token_model.access_token) == token) | (F(token_model.refresh_token) == token)
         return q.filter(qs).first()
 
-    def revoke_token(self, token: TokenType) -> typing.NoReturn:
+    def revoke_token(self, token: TokenType) -> None:
         with resource_manager() as rm:
             rm.update(token, {'revoked': True})
 
@@ -266,7 +272,7 @@ class AuthorizationServer(_AuthorizationServer):
         *,
         query_client: typing.Optional[typing.Callable] = None,
         save_token: typing.Optional[typing.Callable] = None
-    ) -> typing.NoReturn:
+    ) -> None:
         super().init_app(app, query_client=query_client, save_token=save_token)
 
         app.config.setdefault('RESTLIB_OAUTH2_URL_PREFIX', '/oauth')
@@ -311,7 +317,7 @@ class AuthorizationServer(_AuthorizationServer):
         self,
         token_data: dict,
         request: OAuth2Request
-    ) -> typing.NoReturn:
+    ) -> None:
         """Saves tokens to persistent storage."""
         with resource_manager() as rm:
             rm.create(self.OAuth2Token, {

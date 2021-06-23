@@ -2,6 +2,8 @@ from __future__ import annotations
 from datetime import datetime
 import time
 import typing
+import typing as t
+
 
 from authlib.oauth2.rfc6749 import (
     AuthorizationCodeMixin as _AuthorizationCodeMixin,
@@ -431,9 +433,10 @@ class ClientMixin(_ClientMixin):
     def get_client_id(self) -> str:
         return self.client_id
 
-    def get_default_redirect_uri(self) -> typing.Union[str, None]:
-        if self.redirect_uris:
-            return self.redirect_uris[0]
+    def get_default_redirect_uri(self) -> t.Optional[str]:
+        if not self.redirect_uris:
+            return None
+        return self.redirect_uris[0]
 
     def get_allowed_scope(self, scope) -> str:
         if not scope:

@@ -44,7 +44,7 @@ class ApiView(MethodView):
             return current_restlib.factory
         return self.factory_class()
 
-    def check_permissions(self) -> typing.NoReturn:
+    def check_permissions(self) -> None:
         """
         Check if the request should be permitted.
         Raises an exception if the request is not permitted.
@@ -52,7 +52,7 @@ class ApiView(MethodView):
         for permission in self.permissions:
             permission.check_permission(self)
 
-    def check_resource_permissions(self, resource: typing.Any) -> typing.NoReturn:
+    def check_resource_permissions(self, resource: typing.Any) -> None:
         """
         Check if the request should be permitted for a given resource.
         Raises an exception if the request is not permitted.

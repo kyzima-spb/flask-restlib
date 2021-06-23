@@ -2,7 +2,7 @@ from __future__ import annotations
 from copy import deepcopy
 from functools import partial
 import time
-import typing
+import typing as t
 
 try:
     from flask_mongoengine import Document
@@ -243,9 +243,9 @@ class MongoResourceManager(AbstractResourceManager):
 
     def create(
         self,
-        model_class: typing.Any,
-        data: typing.Union[dict, typing.List[dict]]
-    ) -> typing.Any:
+        model_class: t.Any,
+        data: t.Union[dict, t.List[dict]]
+    ) -> t.Any:
         try:
             if isinstance(data, dict):
                 result = model_class(**data).save(force_insert=True)
@@ -257,7 +257,7 @@ class MongoResourceManager(AbstractResourceManager):
         except OperationError as err:
             raise RuntimeError(err) from err
 
-    def delete(self, resource: typing.Any) -> typing.NoReturn:
+    def delete(self, resource: t.Any) -> None:
         try:
             resource.delete()
         except OperationError as err:
@@ -265,18 +265,18 @@ class MongoResourceManager(AbstractResourceManager):
 
     def get(
         self,
-        model_class: type,
-        identifier: typing.Union[typing.Any, tuple, dict]
-    ) -> typing.Union[typing.Any, None]:
+        model_class: t.Type[t.Any],
+        identifier: t.Union[t.Any, tuple, dict]
+    ) -> t.Optional[t.Any]:
         return model_class.objects.with_id(
             self._prepare_identifier(model_class, identifier)
         )
 
     def update(
         self,
-        resource: typing.Any,
+        resource: t.Any,
         attributes: dict
-    ) -> typing.Any:
+    ) -> t.Any:
         if not resource.modify(**attributes):
             raise RuntimeError('Failed to update resource.')
         return resource
