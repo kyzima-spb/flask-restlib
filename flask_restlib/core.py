@@ -24,7 +24,12 @@ from flask_restlib.oauth2 import (
     BearerTokenValidator
 )
 from flask_restlib.routing import ApiBlueprint
-from flask_restlib.types import ErrorResponse, CatchExceptionCallable
+from flask_restlib.types import (
+    Func,
+    ErrorResponse,
+    CatchExceptionCallable,
+    TSchema
+)
 
 
 __all__ = (
@@ -127,7 +132,7 @@ class AbstractQueryAdapter(metaclass=ABCMeta):
         '_order_by',
     )
 
-    def __init__(self, base_query) -> None:
+    def __init__(self, base_query: t.Any) -> None:
         """
         Arguments:
             base_query: native queryset or a reference to the model class.
@@ -161,10 +166,10 @@ class AbstractQueryAdapter(metaclass=ABCMeta):
         return self
 
     @abstractmethod
-    def filter_by(self, **kwargs) -> AbstractQueryAdapter:
+    def filter_by(self, **kwargs: t.Any) -> AbstractQueryAdapter:
         """Applies these criteria to the current queryset."""
 
-    def first(self) -> t.Union[t.Any, None]:
+    def first(self) -> t.Optional[t.Any]:
         """
         Return the first result of this query or None if the result doesn’t contain any row.
         """
@@ -246,7 +251,7 @@ class AbstractResourceManager(metaclass=ABCMeta):
     def create(
         self,
         model_class: t.Any,
-        data: t.Union[dict, t.List[dict]]
+        data: t.Union[dict, list[dict]]
     ) -> t.Any:
         """
         Creates and returns a new instance of the resource filled with data.
@@ -329,7 +334,7 @@ class AbstractFactory(metaclass=ABCMeta):
         """
 
     @abstractmethod
-    def create_query_adapter(self, base_query) -> AbstractQueryAdapter:
+    def create_query_adapter(self, base_query: t.Any) -> AbstractQueryAdapter:
         """
         Creates and returns a queryset for retrieving resources from persistent storage.
         """
@@ -339,7 +344,7 @@ class AbstractFactory(metaclass=ABCMeta):
         """Creates and returns a resource manager instance."""
 
     @abstractmethod
-    def create_schema(self, model_class):
+    def create_schema(self, model_class) -> t.Type[TSchema]:
         """
         Creates and returns an automatic schema class.
 
@@ -423,7 +428,7 @@ class RestLib:
         authorization_code_model: t.Optional[AuthorizationCodeType] = None,
         query_client: t.Optional[t.Callable] = None,
         save_token: t.Optional[t.Callable] = None
-    ):
+    ) -> AuthorizationServer:
         """
         Arguments:
             user_model: Reference to the User model class.
@@ -458,7 +463,7 @@ class RestLib:
         err: Exception,
         status_code: int,
         callback: t.Optional[CatchExceptionCallable] = None
-    ):
+    ) -> tuple[dict, int, dict[str, str]]:
         """
         Handler for all uncaught exceptions.
 
@@ -517,7 +522,7 @@ class RestLib:
         if self.authorization_server is not None:
             self.authorization_server.init_app(app)
 
-    def create_blueprint(self, *args, **kwargs) -> ApiBlueprint:
+    def create_blueprint(self, *args: t.Any, **kwargs: t.Any) -> ApiBlueprint:
         bp = ApiBlueprint(*args, **kwargs)
         self._blueprints.append(bp)
         return bp
@@ -563,8 +568,8 @@ class RestLib:
     def register_exception_handler(
         self,
         exc_type: t.Type[Exception],
-        status_code: t.Optional[int] = DEFAULT_HTTP_ERROR_STATUS
-    ):
+        status_code: int = DEFAULT_HTTP_ERROR_STATUS
+    ) -> t.Callable[[Func], Func]:
         """
         The decorator registers the function as a handler for given type of exception.
 
@@ -572,7 +577,7 @@ class RestLib:
             exc_type: the type of exception to catch.
             status_code (int): HTTP response code, defaults to 400.
         """
-        def decorator(callback):
+        def decorator(callback: Func) -> Func:
             self.catch_exception(exc_type, status_code, callback)
             return callback
         return decorator

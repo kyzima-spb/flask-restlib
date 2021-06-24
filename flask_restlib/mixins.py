@@ -193,8 +193,8 @@ class UpdateViewMixin(UpdateMixin):
 # OAuth2 Mixins
 
 
-AuthorizationCodeType = typing.TypeVar('AuthorizationCodeType', bound='_AuthorizationCodeMixin')
-ClientType = typing.TypeVar('ClientType', bound='_ClientMixin')
+AuthorizationCodeType = typing.TypeVar('AuthorizationCodeType', bound=_AuthorizationCodeMixin)
+ClientType = typing.TypeVar('ClientType', bound=_ClientMixin)
 TokenType = typing.TypeVar('TokenType', bound='TokenMixin')
 UserType = typing.TypeVar('UserType', bound='UserMixin')
 
@@ -218,7 +218,7 @@ class AuthorizationCodeMixin(_AuthorizationCodeMixin):
 
 class ClientMixin(_ClientMixin):
     @property
-    def client_info(self):
+    def client_info(self) -> dict[str, t.Any]:
         """
         Implementation for Client Info in OAuth 2.0 Dynamic Client Registration Protocol via `Section 3.2.1`_.
 
@@ -232,7 +232,7 @@ class ClientMixin(_ClientMixin):
         )
 
     @property
-    def redirect_uris(self) -> typing.List[str]:
+    def redirect_uris(self) -> list[str]:
         """
         Array of redirection URI strings for use in redirect-based flows
         such as the authorization code and implicit flows.
@@ -277,21 +277,21 @@ class ClientMixin(_ClientMixin):
         )
 
     @property
-    def grant_types(self) -> typing.List[str]:
+    def grant_types(self) -> list[str]:
         """
         Array of OAuth 2.0 grant type strings that the client can use at the token endpoint.
         """
         return self.client_metadata.get('grant_types', [])
 
     @property
-    def response_types(self) -> typing.List[str]:
+    def response_types(self) -> list[str]:
         """
         Array of the OAuth 2.0 response type strings that the client can use at the authorization endpoint.
         """
         return self.client_metadata.get('response_types', [])
 
     @property
-    def client_name(self) -> typing.Union[str, None]:
+    def client_name(self) -> t.Optional[str]:
         """
         Human-readable string name of the client to be presented to the end-user during authorization.
 
@@ -305,7 +305,7 @@ class ClientMixin(_ClientMixin):
         return self.client_metadata.get('client_name')
 
     @property
-    def client_uri(self) -> typing.Union[str, None]:
+    def client_uri(self) -> t.Optional[str]:
         """
         URL string of a web page providing information about the client.
 
@@ -319,7 +319,7 @@ class ClientMixin(_ClientMixin):
         return self.client_metadata.get('client_uri')
 
     @property
-    def logo_uri(self) -> typing.Union[str, None]:
+    def logo_uri(self) -> t.Optional[str]:
         """
         URL string that references a logo for the client.
 
@@ -346,7 +346,7 @@ class ClientMixin(_ClientMixin):
         return self.client_metadata.get('scope', '')
 
     @property
-    def contacts(self) -> list:
+    def contacts(self) -> list[str]:
         """
         Array of strings representing ways to contact people responsible for this client, typically email addresses.
 
@@ -359,7 +359,7 @@ class ClientMixin(_ClientMixin):
         return self.client_metadata.get('contacts', [])
 
     @property
-    def tos_uri(self) -> typing.Union[str, None]:
+    def tos_uri(self) -> t.Optional[str]:
         """
         URL string that points to a human-readable terms of service document
         for the client that describes a contractual relationship
@@ -375,7 +375,7 @@ class ClientMixin(_ClientMixin):
         return self.client_metadata.get('tos_uri')
 
     @property
-    def policy_uri(self) -> typing.Union[str, None]:
+    def policy_uri(self) -> t.Optional[str]:
         """
         URL string that points to a human-readable privacy policy document that describes
         how the deployment organization collects, uses, retains, and discloses personal data.
@@ -389,7 +389,7 @@ class ClientMixin(_ClientMixin):
         return self.client_metadata.get('policy_uri')
 
     @property
-    def jwks_uri(self) -> typing.Union[str, None]:
+    def jwks_uri(self) -> t.Optional[str]:
         """
         URL string referencing the client's JSON Web Key (JWK) Set [RFC7517] document,
         which contains the client's public keys.
@@ -419,15 +419,15 @@ class ClientMixin(_ClientMixin):
         return self.client_metadata.get('jwks', [])
 
     @property
-    def software_id(self) -> typing.Union[str, None]:
+    def software_id(self) -> t.Optional[str]:
         return self.client_metadata.get('software_id')
 
     @property
-    def software_version(self) -> typing.Union[str, None]:
+    def software_version(self) -> t.Optional[str]:
         return self.client_metadata.get('software_version')
 
     @property
-    def client_id(self):
+    def client_id(self) -> str:
         return str(self.id)
 
     def get_client_id(self) -> str:
@@ -438,7 +438,7 @@ class ClientMixin(_ClientMixin):
             return None
         return self.redirect_uris[0]
 
-    def get_allowed_scope(self, scope) -> str:
+    def get_allowed_scope(self, scope: str) -> str:
         if not scope:
             return ''
         allowed = set(self.scope.split())

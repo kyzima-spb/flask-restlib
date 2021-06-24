@@ -7,18 +7,19 @@ from authlib.integrations.flask_oauth2.resource_protector import ResourceProtect
 from flask_login import current_user
 from flask_restlib import current_restlib
 from flask_restlib.exceptions import AuthenticationError, AuthorizationError
+from flask_restlib.types import ViewType
 
 
 class Permission:
     """A base class from which all permission classes should inherit."""
 
-    def check_permission(self, view) -> None:
+    def check_permission(self, view: ViewType) -> None:
         """
         Checks if permission was granted,
         otherwise raises `AuthorizationError` or `AuthenticationError`.
         """
 
-    def check_resource_permission(self, view, resource) -> None:
+    def check_resource_permission(self, view: ViewType, resource: t.Any) -> None:
         """
         Checks if permission for the object was granted,
         otherwise raises `AuthorizationError`.
@@ -28,7 +29,7 @@ class Permission:
 class IsAuthenticated(Permission):
     """Allows access only to authenticated users."""
 
-    def check_permission(self, view) -> None:
+    def check_permission(self, view: ViewType) -> None:
         if not current_user.is_authenticated:
             raise AuthenticationError
 
@@ -57,7 +58,7 @@ class TokenHasScope(Permission):
     def get_resource_protector(self) -> ResourceProtector:
         return current_restlib.resource_protector
 
-    def check_permission(self, view) -> None:
+    def check_permission(self, view: ViewType) -> None:
         try:
             self.get_resource_protector().acquire_token(
                 self.scope, self.operator

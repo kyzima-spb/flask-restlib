@@ -182,7 +182,7 @@ class MongoQueryAdapter(AbstractQueryAdapter):
     def exists(self) -> bool:
         return bool(self.make_query().first())
 
-    def filter_by(self, **kwargs) -> AbstractQueryAdapter:
+    def filter_by(self, **kwargs: t.Any) -> AbstractQueryAdapter:
         self._base_query = self._base_query.filter(**kwargs)
         return self
 
@@ -286,7 +286,7 @@ class MongoEngineFactory(AbstractFactory):
     def create_model_field_adapter(self, column):
         return MongoModelField(column)
 
-    def create_query_adapter(self, base_query=None) -> MongoQueryAdapter:
+    def create_query_adapter(self, base_query: t.Any) -> MongoQueryAdapter:
         return MongoQueryAdapter(base_query)
 
     def create_resource_manager(self) -> MongoResourceManager:

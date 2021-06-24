@@ -309,7 +309,7 @@ class AuthorizationServer(_AuthorizationServer):
         """Returns user by user_id."""
         return resource_manager().get(self.OAuth2User, user_id)
 
-    def _query_client(self, client_id: str):
+    def _query_client(self, client_id: str) -> t.Optional[ClientType]:
         """Returns client by client_id."""
         return resource_manager().get(self.OAuth2Client, client_id)
 

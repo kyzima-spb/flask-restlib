@@ -9,6 +9,7 @@ from flask_restlib import current_restlib
 from flask_restlib import mixins
 from flask_restlib.core import AbstractFactory, AbstractResourceManager
 from flask_restlib.permissions import Permission
+from flask_restlib.types import TSchema
 
 
 __all__ = (
@@ -77,7 +78,7 @@ class ApiView(MethodView):
         """Creates and returns a resource manager instance."""
         return self.get_factory().create_resource_manager()
 
-    def create_schema(self, *args, **kwargs):
+    def create_schema(self, *args, **kwargs) -> TSchema:
         """
         Creates and returns a schema instance
         that is used to validate the input and serialize the output.
@@ -134,7 +135,7 @@ class ApiView(MethodView):
 
         return resource
 
-    def get_schema_class(self):
+    def get_schema_class(self) -> typing.Type[TSchema]:
         """
         Returns a reference to the class of the schema to use for serialization.
         """

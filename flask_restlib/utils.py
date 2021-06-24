@@ -1,11 +1,10 @@
 from __future__ import annotations
 from importlib import import_module
 import re
+import typing as t
 
 from flask import current_app
 from werkzeug.local import LocalProxy
-
-# from flask_restlib.core import RestLib
 
 
 __all__ = (
@@ -38,18 +37,18 @@ def resource_manager():
     return current_restlib.factory.create_resource_manager()
 
 
-def camel_to_list(s, lower=False):
+def camel_to_list(s: str, lower: bool = False) -> list[str]:
     """Converts a camelcase string to a list."""
-    s = re.findall(r'([A-Z][a-z0-9]+)', s) or [s]
-    return [w.lower() for w in s] if lower else s
+    lst = re.findall(r'([A-Z][a-z0-9]+)', s) or [s]
+    return [w.lower() for w in lst] if lower else lst
 
 
-def camel_to_snake(name):
+def camel_to_snake(name: str) -> str:
     """Converts a camelcase string to a snake case string."""
     return '_'.join(camel_to_list(name, lower=True))
 
 
-def snake_to_camel(name):
+def snake_to_camel(name: str) -> str:
     """Converts a snake case string to a camelcase string."""
     return ''.join(name.title().split('_'))
 

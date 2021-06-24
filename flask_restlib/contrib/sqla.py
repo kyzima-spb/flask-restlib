@@ -178,7 +178,7 @@ class QueryAdapter(AbstractQueryAdapter):
         q = self.make_query().exists()
         return self.session.query(q).scalar()
 
-    def filter_by(self, **kwargs) -> AbstractQueryAdapter:
+    def filter_by(self, **kwargs: typing.Any) -> AbstractQueryAdapter:
         # print(get_query_entities(self._base_query))
         self._base_query = self._base_query.filter_by(**kwargs)
         return self
@@ -266,7 +266,7 @@ class SQLAFactory(AbstractFactory):
     def create_model_field_adapter(self, column):
         return SQLAModelField(column)
 
-    def create_query_adapter(self, base_query) -> QueryAdapter:
+    def create_query_adapter(self, base_query: typing.Any) -> QueryAdapter:
         return QueryAdapter(base_query, session=self.session)
 
     def create_resource_manager(self):

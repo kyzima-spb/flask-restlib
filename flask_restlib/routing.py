@@ -10,6 +10,7 @@ import typing as t
 from flask import Blueprint
 from flask.views import View
 
+from flask_restlib.types import ViewType
 from flask_restlib.utils import camel_to_snake
 
 
@@ -28,9 +29,17 @@ class Route:
         'endpoint', 'url_converter', 'lookup_name',
     )
 
-    def __init__(self, resource, view, is_item=False,
-                 endpoint=None, url_converter='int', lookup_name='id',
-                 parent=None, parent_lookup_name=None):
+    def __init__(
+        self,
+        resource: t.Any,
+        view: ViewType,
+        is_item: bool = False,
+        endpoint: t.Optional[str] = None,
+        url_converter: str = 'int',
+        lookup_name: t.Union[str, bool] = 'id',
+        parent: t.Optional[Route] = None,
+        parent_lookup_name: t.Optional[str] = None
+    ) -> None:
         """
         Arguments:
             resource (str): resource name, used as part of the URI.
@@ -42,8 +51,8 @@ class Route:
             parent (:py:class:`~flask_restlib.routing.Route`): the name of the URI parameter for the parent route.
             parent_lookup_name (str): the name of the URI parameter for the parent route.
         """
-        self._parent = None
-        self._children = []
+        self._parent: t.Optional[Route] = None
+        self._children: list[Route] = []
 
         self.resource = resource
         self.is_item = bool(is_item)
@@ -51,7 +60,7 @@ class Route:
         if endpoint is None:
             endpoint = camel_to_snake(view.__name__)
 
-        if isinstance(view, type):
+        if isinstance(view, View):
             view = view.as_view(endpoint)
 
         self.endpoint = endpoint
@@ -69,7 +78,7 @@ class Route:
             self.__class__.__name__, self.get_rule(), self.endpoint
         )
 
-    def iter_rules(self) -> Iterable[tuple[str, str, View]]:
+    def iter_rules(self) -> Iterable[tuple[str, str, ViewType]]:
         """
         Returns an iterator,
         each element of which is a tuple of argument values
@@ -86,8 +95,14 @@ class Route:
         self._children.append(route)
         return route
 
-    def add_item_view(self, view, endpoint=None, url_converter=None,
-                      lookup_name=None, parent_lookup_name=None) -> Route:
+    def add_item_view(
+        self,
+        view: ViewType,
+        endpoint: t.Optional[str] = None,
+        url_converter: t.Optional[str] = None,
+        lookup_name: t.Optional[t.Union[str, bool]] = None,
+        parent_lookup_name: t.Optional[str] = None
+    ) -> Route:
         """
         Creates and returns a route for a collection item.
 
