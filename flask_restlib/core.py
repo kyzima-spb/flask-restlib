@@ -23,7 +23,7 @@ from flask_restlib.oauth2 import (
     AuthorizationServer,
     BearerTokenValidator
 )
-from flask_restlib.routing import ApiBlueprint
+from flask_restlib.routing import Router
 from flask_restlib.types import (
     Func,
     ErrorResponse,
@@ -382,6 +382,7 @@ class RestLib:
         '_deferred_error_handlers',
         'app',
         'factory',
+        'router',
         'resource_protector',
         'authorization_server',
         'ma',
@@ -399,6 +400,7 @@ class RestLib:
 
         self.app = app
         self.factory = factory
+        self.router = Router('api')
 
         self.resource_protector = ResourceProtector()
         # only bearer token is supported currently
@@ -515,21 +517,14 @@ class RestLib:
         for exc_type, handler in self._deferred_error_handlers.items():
             app.register_error_handler(exc_type, handler)
 
+        app.register_blueprint(self.router.bp)
+
         if not hasattr(app.jinja_env, 'install_gettext_callables'):
             app.jinja_env.add_extension('jinja2.ext.i18n')
             app.jinja_env.install_null_translations(True)
 
         if self.authorization_server is not None:
             self.authorization_server.init_app(app)
-
-    def create_blueprint(self, *args: t.Any, **kwargs: t.Any) -> ApiBlueprint:
-        bp = ApiBlueprint(*args, **kwargs)
-        self._blueprints.append(bp)
-        return bp
-
-    def register_blueprints(self, app: Flask) -> None:
-        for bp in self._blueprints:
-            app.register_blueprint(bp)
 
     def handle_api_exception(
         self,

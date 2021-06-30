@@ -25,10 +25,9 @@ class ErrorResponse:
         self.path = request.path
         self.timestamp = datetime.utcnow().isoformat()
 
-    def to_dict(self, exclude: t.Optional[t.Iterable[str]] = None) -> dict:
-        def factory(items: t.Mapping[str, t.Any]) -> dict:
+    def to_dict(self, exclude: t.Iterable[str] = ('headers',)) -> dict:
+        def factory(items: t.Iterable[tuple[str, t.Any]]) -> dict:
             return {k: v for k, v in items if k not in exclude}
-        exclude = exclude or ('headers',)
         return dataclasses.asdict(self, dict_factory=factory)
 
 
@@ -36,7 +35,7 @@ Func = t.TypeVar('Func', bound=t.Callable[..., t.Any])
 AnyException = t.TypeVar('AnyException', bound=Exception)
 CatchExceptionCallable = t.Callable[[AnyException, ErrorResponse], None]
 
-ViewType = t.Union[t.Callable, View]
+TView = t.Union[t.Callable, View]
 TSchema = t.TypeVar('TSchema', bound=Schema)
 
 # QueryAdapterType = t.TypeVar('QueryAdapterType', bound='AbstractQueryAdapter')
