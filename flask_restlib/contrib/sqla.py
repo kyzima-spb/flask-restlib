@@ -77,6 +77,8 @@ def create_user_reference_mixin(user_model):
 
 
 class OAuth2ClientMixin(ClientMixin):
+    __tablename__ = 'oauth2_client'
+
     id = sa.Column(
         sa.String(48),
         primary_key=True,
@@ -101,10 +103,12 @@ class OAuth2ClientMixin(ClientMixin):
 
 
 class OAuth2TokenMixin(_OAuth2TokenMixin, TokenMixin):
+    __tablename__ = 'oauth2_token'
     id = sa.Column(UUIDType(binary=False), primary_key=True)
 
 
 class OAuth2AuthorizationCodeMixin(_OAuth2AuthorizationCodeMixin, AuthorizationCodeMixin):
+    __tablename__ = 'oauth2_code'
     id = sa.Column(UUIDType(binary=False), primary_key=True)
 
 
@@ -295,9 +299,7 @@ class SQLAFactory(AbstractFactory):
                 OAuth2ClientMixin,
                 get_declarative_base(user_model),
             ),
-            {
-                '__tablename__': 'oauth2_client',
-            }
+            {}
         )
 
     def create_token_model(self, user_model, client_model):
@@ -309,9 +311,7 @@ class SQLAFactory(AbstractFactory):
                 OAuth2TokenMixin,
                 get_declarative_base(user_model),
             ),
-            {
-                '__tablename__': 'oauth2_token',
-            }
+            {}
         )
 
     def create_authorization_code_model(self, user_model, client_model):
@@ -323,7 +323,5 @@ class SQLAFactory(AbstractFactory):
                 OAuth2AuthorizationCodeMixin,
                 get_declarative_base(user_model),
             ),
-            {
-                '__tablename__': 'oauth2_code',
-            }
+            {}
         )
