@@ -9,12 +9,12 @@ Views
 
 Список доступных представлений:
 
-* `index_endpoint = IndexView.as_view('index')` - главная страница
-* `login_endpoint = LoginView.as_view('login')` - вход
-* `logout_endpoint = LogoutView.as_view('logout')` - выход
-* `authorize_endpoint = AuthorizeView.as_view('authorize')` - авторизация приложения
-* `access_token_endpoint = AccessTokenView.as_view('access_token')` - запрос токена доступа (заменять не рекомендуется)
-* `revoke_token_endpoint = RevokeTokenView.as_view('revoke_token')` - отозвать ранее выданный токен (заменять не рекомендуется)
+* ``index_endpoint = IndexView.as_view('index')`` - главная страница
+* ``login_endpoint = LoginView.as_view('login')`` - вход
+* ``logout_endpoint = LogoutView.as_view('logout')`` - выход
+* ``authorize_endpoint = AuthorizeView.as_view('authorize')`` - авторизация приложения
+* ``access_token_endpoint = AccessTokenView.as_view('access_token')`` - запрос токена доступа (заменять не рекомендуется)
+* ``revoke_token_endpoint = RevokeTokenView.as_view('revoke_token')`` - отозвать ранее выданный токен (заменять не рекомендуется)
 
 Любое представление можно заменить своим представлением, изменять имена представлений запрещено, например:
 
@@ -38,10 +38,10 @@ Views
 
 Список доступных шаблонов:
 
-* `restlib/base.html` - базовый шаблон, от которого наследуют все шаблоны
-* `restlib/index.html` - шаблон главной страницы, по-умолчанию отображает кнопку выхода
-* `restlib/login.html` - шаблон страницы входа с формой входа
-* `restlib/authorize.html` - шаблон страницы авторизации с формой разрешения или запрета доступа
+* ``restlib/base.html`` - базовый шаблон, от которого наследуют все шаблоны
+* ``restlib/index.html`` - шаблон главной страницы, по-умолчанию отображает кнопку выхода
+* ``restlib/login.html`` - шаблон страницы входа с формой входа
+* ``restlib/authorize.html`` - шаблон страницы авторизации с формой разрешения или запрета доступа
 
 Чтобы унаследоваться от шаблона без его копирования, можно использовать следующий код:
 
