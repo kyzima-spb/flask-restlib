@@ -1,0 +1,71 @@
+{% extends "restlib/base.html" %}
+{% import "restlib/markup.html" as markup %}
+
+{% block page_title %}Login{% endblock %}
+
+{% macro validation_class(form, field) %}
+  {%- if form.is_submitted() -%}
+    {{- 'is-invalid' if field.errors else 'is-valid' -}}
+  {%- endif -%}
+{% endmacro %}
+
+{% macro form_errors(field, id) %}
+  {%- if field.errors %}
+    <div id="{{ id }}" class="invalid-feedback">
+      {%- for error in field.errors %}
+        <p>{{ error }}</p>
+      {% endfor -%}
+    </div>
+  {% endif -%}
+{% endmacro %}
+
+{% block messages %}
+  {% if current_user.is_authenticated %}
+    {%- set message %}
+    You are authenticated as {{ current_user }}, but are not authorized to access this page.
+    Would you like to login to a different account?
+    {% endset -%}
+    {{- markup.alert(message, "error", closable=true) -}}
+  {% endif %}
+{% endblock messages %}
+
+{%- block page_content %}
+  <div class="card">
+    <div class="card-body">
+      <form method="POST" novalidate>
+        {{ form.hidden_tag() }}
+        <div class="input-group mb-3">
+          <span class="input-group-text" id="usernameIcon">
+            <i class="bi bi-person-fill"></i>
+          </span>
+          {{ form.username(class="form-control " + validation_class(form, form.username),
+                           placeholder=form.username.label.text,
+                           aria_label=form.username.label.text,
+                           aria_describedby="usernameIcon usernameFeedback") }}
+          {{- form_errors(form.username, "usernameFeedback") -}}
+        </div>
+        <div class="input-group mb-3">
+          <span class="input-group-text" id="passwordIcon">
+            <i class="bi bi-lock-fill"></i>
+          </span>
+          {{ form.password(class="form-control " + validation_class(form, form.password),
+                           placeholder=form.password.label.text,
+                           aria_label=form.password.label.text,
+                           aria_describedby="passwordIcon passwordFeedback") }}
+          {{- form_errors(form.password, "passwordFeedback") -}}
+        </div>
+        <div class="row align-items-center">
+          <div class="col-8">
+            <div class="form-check">
+              {{ form.remember_me(class="form-check-input") }}
+              {{ form.remember_me.label(class="form-check-label") }}
+            </div>
+          </div>
+          <div class="col-4 text-end">
+            <button type="submit" class="btn btn-primary btn-block">Log in</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+{%- endblock page_content %}

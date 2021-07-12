@@ -23,4 +23,8 @@ Option                                       Description
                                              Defaults to ``True``.
 `RESTLIB_URL_PARAM_SORT`                     The name of the URL parameter that is used for sorting.
                                              Defaults to ``sort``.
+`RESTLIB_REMEMBER_ME`                        Allow users to remember them on the current device.
+                                             The option only affects the display of the flag,
+                                             the logic needs to be implemented.
+                                             Defaults to ``False``.
 =========================================    ================================================================

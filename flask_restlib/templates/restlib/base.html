@@ -1,0 +1,41 @@
+{% extends "restlib/skeleton.html" %}
+{% import "restlib/markup.html" as markup %}
+
+{% block body -%}
+<div id="box" class="d-flex align-items-center">
+    <div class="container-fluid">
+      <div class="row justify-content-center">
+        <div class="col-6">
+          <h1 class="m-3 text-center">OAuth2.0 Server</h1>
+          {{ markup.render_flashed_messages() }}
+          {% block messages %}{% endblock messages %}
+          {% block page_content %}{% endblock page_content %}
+          {% block custom_links %}{% endblock custom_links %}
+        </div>
+      </div>
+    </div>
+  </div>
+{%- endblock body %}
+
+{% block styles -%}
+  {{- super() -}}
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.5.0/font/bootstrap-icons.css">
+{%- endblock styles %}
+
+{% block javascript -%}
+  {{- super() -}}
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-MrcW6ZMFYlzcLA8Nl+NtUVF0sA7MsXsP1UyJoMp4YLEuNSfAP+JcXn/tWtIaxVXM" crossorigin="anonymous"></script>
+{%- endblock javascript %}
+
+{% block javascript_inline -%}
+  document.addEventListener('DOMContentLoaded', () => {
+    let box = document.getElementById('box');
+    box.style['min-height'] = box.clientHeight + 'px';
+    box.style.height = window.innerHeight + 'px';
+  });
+
+  window.addEventListener('resize', () => {
+    document.getElementById('box').style.height = window.innerHeight + 'px';
+  });
+{%- endblock -%}

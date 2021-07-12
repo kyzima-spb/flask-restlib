@@ -1,0 +1,24 @@
+{% extends "restlib/base.html" %}
+{% import "restlib/markup.html" as markup %}
+
+{% block page_title %}Logout{% endblock %}
+
+{%- block page_content %}
+  <div class="card border-0">
+    <div class="row g-0 align-items-center">
+      <div class="col-1">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" class="bi bi-person-fill" viewBox="0 0 16 16">
+          <path d="M3 14s-1 0-1-1 1-4 6-4 6 3 6 4-1 1-1 1H3zm5-6a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/>
+        </svg>
+      </div>
+      <div class="col-9">
+        <div class="card-body">
+          <p class="card-title">You are logged in as: <b>{{ current_user }}</b></p>
+        </div>
+      </div>
+      <div class="col-2 text-end">
+        <a class="btn btn-primary btn-block" href="{{ url_for('oauth.logout') }}">Log out</a>
+      </div>
+    </div>
+  </div>
+{%- endblock page_content %}

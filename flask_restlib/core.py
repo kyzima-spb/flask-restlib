@@ -497,6 +497,8 @@ class RestLib:
         """
         handler = partial(self._exception_handler, status_code=status_code, callback=callback)
 
+        # self.router.bp.register_error_handler()
+
         if self.app is not None:
             self.app.register_error_handler(exc_type, handler)
         else:
@@ -511,6 +513,7 @@ class RestLib:
         app.config.setdefault('RESTLIB_PAGINATION_LIMIT', 25)
         app.config.setdefault('RESTLIB_SORTING_ENABLED', True)
         app.config.setdefault('RESTLIB_URL_PARAM_SORT', 'sort')
+        app.config.setdefault('RESTLIB_REMEMBER_ME', False)
 
         app.extensions['restlib'] = self
 

@@ -9,12 +9,12 @@ Views
 
 Список доступных представлений:
 
-* ``index_endpoint = IndexView.as_view('index')`` - главная страница
-* ``login_endpoint = LoginView.as_view('login')`` - вход
-* ``logout_endpoint = LogoutView.as_view('logout')`` - выход
-* ``authorize_endpoint = AuthorizeView.as_view('authorize')`` - авторизация приложения
-* ``access_token_endpoint = AccessTokenView.as_view('access_token')`` - запрос токена доступа (заменять не рекомендуется)
-* ``revoke_token_endpoint = RevokeTokenView.as_view('revoke_token')`` - отозвать ранее выданный токен (заменять не рекомендуется)
+* ``index_endpoint = IndexView.as_view('index')`` - home page
+* ``login_endpoint = LoginView.as_view('login')`` - account authentication
+* ``logout_endpoint = LogoutView.as_view('logout')`` - logout of your account
+* ``authorize_endpoint = AuthorizeView.as_view('authorize')`` - application authorization
+* ``access_token_endpoint = AccessTokenView.as_view('access_token')`` - access token request (заменять не рекомендуется)
+* ``revoke_token_endpoint = RevokeTokenView.as_view('revoke_token')`` - revokes a previously issued token (заменять не рекомендуется)
 
 Любое представление можно заменить своим представлением, изменять имена представлений запрещено, например:
 

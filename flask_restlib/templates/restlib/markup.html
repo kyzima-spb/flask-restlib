@@ -1,0 +1,49 @@
+{% set icon_map = {
+  'debug': 'bi bi-bug-fill',
+  'error': 'bi bi-slash-circle-fill',
+  'warning': 'bi bi-exclamation-triangle-fill',
+  'info': 'bi bi-info-circle-fill',
+  'success': 'bi bi-check-circle-fill',
+  'message': 'bi bi-info-circle-fill',
+} %}
+
+{% set color_map = {
+  'debug': 'secondary',
+  'error': 'danger',
+  'warning': 'warning',
+  'info': 'info',
+  'success': 'success',
+  'message': 'info',
+} %}
+
+{% macro alert(message, level='message', closable=false, show_icon=true) %}
+  {%- set icon = kwargs['icon'] | default(icon_map[level]) -%}
+  <div class="alert
+              alert-{{ kwargs['color'] | default(color_map[level]) | default('light') }}
+              d-flex align-items-center fade show
+              {% if closable %}alert-dismissible{% endif %}
+              {{ kwargs['class'] }}"
+       role="alert"
+  >
+    {%- if show_icon and icon %}
+      <i class="{{ icon }} flex-shrink-0 me-2"></i>
+    {% endif -%}
+    <div>{{ message }}</div>
+    {%- if closable %}
+      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    {% endif -%}
+  </div>
+{% endmacro %}
+
+
+{% macro render_flashed_messages() %}
+  {%- with messages = get_flashed_messages(with_categories=True) %}
+    {%- if messages %}
+      <div class="flash-messages-box">
+        {%- for level, message in messages %}
+          {{- alert(message, level, closable=true) -}}
+        {% endfor -%}
+      </div>
+    {% endif -%}
+  {% endwith -%}
+{% endmacro %}

@@ -14,10 +14,14 @@ from authlib.oauth2.rfc6749.wrappers import OAuth2Request
 from authlib.oauth2.rfc6750 import BearerTokenValidator as _BearerTokenValidator
 from authlib.oauth2.rfc7009 import RevocationEndpoint
 from flask import (
-    Flask, Blueprint, abort, Response,
-    current_app, request
+    Flask, Blueprint, abort,
+    current_app, request,
+    url_for, redirect
 )
-from flask_login import LoginManager, current_user, login_required
+from flask_login import (
+    LoginManager, current_user, login_required, login_user, logout_user
+)
+from flask_restlib.forms import LoginForm
 from flask_restlib.mixins import (
     AuthorizationCodeType,
     ClientType,
@@ -25,10 +29,16 @@ from flask_restlib.mixins import (
     UserType
 )
 from flask_restlib.utils import (
-    F, current_restlib, query_adapter, resource_manager
+    F,
+    current_restlib,
+    query_adapter,
+    resource_manager
 )
-from flask_useful.views import MethodView
+from flask_useful.views import MethodView, FormView
+from flask_useful.utils import flash
+from flask_wtf.csrf import validate_csrf
 from werkzeug.local import LocalProxy
+from wtforms.validators import ValidationError
 
 
 authorization_server = LocalProxy(
@@ -176,12 +186,58 @@ class BearerTokenValidator(_BearerTokenValidator):
         return token.revoked
 
 
-class AccessTokenView(MethodView):
-    def post(self):
-        return authorization_server.create_token_response()
+# Views
+
+
+class IndexView(MethodView):
+    """Home page."""
+    decorators = [login_required]
+    template_name = 'restlib/index.html'
+
+    def get(self):
+        return self.render_template()
+
+
+class LoginView(FormView):
+    """Account authentication."""
+    form_class = LoginForm
+    template_name = 'restlib/login.html'
+
+    def get(self):
+        if current_user.is_authenticated:
+            return redirect(url_for('oauth.index'))
+        return super().get()
+
+    def form_valid(self, form, obj=None):
+        user = authorization_server.OAuth2User.find_by_username(form.username.data)
+
+        if user and user.check_password(form.password.data):
+            remember = current_app.config['RESTLIB_REMEMBER_ME'] and form.remember_me.data
+            login_user(user, remember=remember)
+
+            redirect_url = request.args.get('next')
+
+            if redirect_url is None or not redirect_url.startswith('/'):
+                redirect_url = url_for('oauth.index')
+
+            return redirect(redirect_url)
+
+        flash.error('Invalid account')
+
+        return self.form_invalid(form, obj)
+
+
+class LogoutView(MethodView):
+    """Logout of your account."""
+    decorators = [login_required]
+
+    def get(self):
+        logout_user()
+        return redirect(url_for('oauth.login'))
 
 
 class AuthorizeView(MethodView):
+    """Application authorization."""
     decorators = [login_required]
     template_name = 'restlib/authorize.html'
 
@@ -189,14 +245,19 @@ class AuthorizeView(MethodView):
         try:
             grant = authorization_server.validate_consent_request(end_user=current_user)
         except OAuth2Error as err:
-            current_app.logger.error(err.get_body())
-            abort(Response(
-                err.get_error_description(), err.status_code, err.get_headers()
-            ))
+            error_message = ', '.join(f'{k}: {v}' for k, v in err.get_body())
+            current_app.logger.error(error_message)
+            abort(err.status_code, err.error)
         else:
             return self.render_template(grant=grant)
 
     def post(self):
+        try:
+            validate_csrf(request.form.get('csrf_token', ''))
+        except ValidationError as err:
+            flash.error(str(err))
+            return redirect(request.url)
+
         grant_user = None
         accept = 'accept' in request.form
         decline = 'decline' in request.form
@@ -209,7 +270,14 @@ class AuthorizeView(MethodView):
         )
 
 
+class AccessTokenView(MethodView):
+    """Access token request."""
+    def post(self):
+        return authorization_server.create_token_response()
+
+
 class RevokeTokenView(MethodView):
+    """Revokes a previously issued token."""
     def post(self):
         return authorization_server.create_endpoint_response(
             RevokeToken.ENDPOINT_NAME
@@ -253,15 +321,16 @@ class AuthorizationServer(_AuthorizationServer):
 
         self.login_manager = LoginManager()
         self.login_manager.user_loader(self._load_user)
+        self.login_manager.login_view = 'oauth.login'
 
+        self.index_endpoint = IndexView.as_view('index')
+        self.login_endpoint = LoginView.as_view('login')
+        self.logout_endpoint = LogoutView.as_view('logout')
         self.authorize_endpoint = AuthorizeView.as_view('authorize')
         self.access_token_endpoint = AccessTokenView.as_view('access_token')
         self.revoke_token_endpoint = RevokeTokenView.as_view('revoke_token')
 
         self.bp = Blueprint('oauth', __name__, template_folder='templates')
-        self.bp.add_url_rule('/authorize', view_func=self.authorize_endpoint)
-        self.bp.add_url_rule('/token', view_func=self.access_token_endpoint)
-        self.bp.add_url_rule('/revoke', view_func=self.revoke_token_endpoint)
 
         if app is not None:
             self.init_app(app)
@@ -303,6 +372,12 @@ class AuthorizationServer(_AuthorizationServer):
 
         self.login_manager.init_app(app)
 
+        self.bp.add_url_rule('/', view_func=self.index_endpoint)
+        self.bp.add_url_rule('/login', view_func=self.login_endpoint)
+        self.bp.add_url_rule('/logout', view_func=self.logout_endpoint)
+        self.bp.add_url_rule('/authorize', view_func=self.authorize_endpoint)
+        self.bp.add_url_rule('/token', view_func=self.access_token_endpoint)
+        self.bp.add_url_rule('/revoke', view_func=self.revoke_token_endpoint)
         app.register_blueprint(self.bp, url_prefix=app.config['RESTLIB_OAUTH2_URL_PREFIX'])
 
     def _load_user(self, user_id):
