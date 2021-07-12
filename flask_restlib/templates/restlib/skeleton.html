@@ -1,0 +1,34 @@
+{%- block document -%}
+<!DOCTYPE html>
+<html{% block html_attributes %} lang="en"{% endblock %}>
+<head>
+{% block head -%}
+  {% block meta -%}
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="x-ua-compatible" content="ie=edge">
+    <title>{% block title %}{% block page_title %}{% endblock %} | {% block site_title %}{% endblock %}{% endblock title %}</title>
+    <meta name="description" content="{% block meta_description %}{% endblock %}">
+  {%- endblock meta %}
+  {% block og -%}
+    <meta property="og:locale" content="{% block og_locale %}en_US{% endblock %}">
+    <meta property="og:type" content="{% block og_type %}website{% endblock %}">
+    <meta property="og:site_name" content="{% block og_site_name %}{{ self.site_title() }}{% endblock %}">
+    <meta property="og:title" content="{% block og_title %}{{ self.page_title() }}{% endblock %}">
+    <meta property="og:description" content="{% block og_description %}{{ self.meta_description() }}{% endblock %}">
+    <meta property="og:image" content="{% block og_image %}{% endblock %}">
+    <meta property="og:url" content="{% block og_url %}{% endblock %}">
+  {%- endblock og -%}
+  {% block styles -%}{%- endblock styles %}
+  <style>{% block styles_inline %}{% endblock styles_inline %}</style>
+  {% block javascript_head -%}{%- endblock javascript_head -%}
+{% endblock head -%}
+</head>
+
+<body{% block body_attributes %}{% endblock %}>
+  {% block body -%}{%- endblock body -%}
+  {% block javascript -%}{%- endblock javascript %}
+  <script>{% block javascript_inline -%}{%- endblock -%}</script>
+</body>
+</html>
+{%- endblock document %}
