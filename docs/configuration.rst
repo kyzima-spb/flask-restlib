@@ -9,6 +9,8 @@ Set the required options in your configuration file that uses your framework:
 =========================================    ================================================================
 Option                                       Description
 =========================================    ================================================================
+`RESTLIB_URL_PREFIX`                         URL prefix for all API endpoints.
+                                             Defaults to ``''``.
 `RESTLIB_PAGINATION_ENABLED`                 Allowe pagination for collections.
                                              Defaults to ``True``.
 `RESTLIB_URL_PARAM_LIMIT`                    The name of the URL parameter

@@ -6,7 +6,7 @@ from functools import partial
 import typing as t
 
 from authlib.integrations.flask_oauth2 import ResourceProtector
-from flask import Flask, Blueprint
+from flask import Flask
 from flask_marshmallow import Marshmallow
 from marshmallow import Schema
 from webargs.flaskparser import parser
@@ -378,7 +378,6 @@ class AbstractFactory(metaclass=ABCMeta):
 
 class RestLib:
     __slots__ = (
-        '_blueprints',
         '_deferred_error_handlers',
         'app',
         'factory',
@@ -395,7 +394,6 @@ class RestLib:
         factory: AbstractFactoryType,
         auth_options: t.Optional[dict] = None
     ) -> None:
-        self._blueprints: list[Blueprint] = []
         self._deferred_error_handlers: dict[t.Type[Exception], CatchExceptionCallable] = {}
 
         self.app = app
@@ -497,8 +495,6 @@ class RestLib:
         """
         handler = partial(self._exception_handler, status_code=status_code, callback=callback)
 
-        # self.router.bp.register_error_handler()
-
         if self.app is not None:
             self.app.register_error_handler(exc_type, handler)
         else:
@@ -507,6 +503,7 @@ class RestLib:
     def init_app(self, app: Flask) -> None:
         self.ma.init_app(app)
 
+        app.config.setdefault('RESTLIB_URL_PREFIX', '')
         app.config.setdefault('RESTLIB_PAGINATION_ENABLED', True)
         app.config.setdefault('RESTLIB_URL_PARAM_LIMIT', 'limit')
         app.config.setdefault('RESTLIB_URL_PARAM_OFFSET', 'offset')
@@ -520,7 +517,7 @@ class RestLib:
         for exc_type, handler in self._deferred_error_handlers.items():
             app.register_error_handler(exc_type, handler)
 
-        app.register_blueprint(self.router.bp)
+        app.register_blueprint(self.router.bp, url_prefix=app.config['RESTLIB_URL_PREFIX'])
 
         if not hasattr(app.jinja_env, 'install_gettext_callables'):
             app.jinja_env.add_extension('jinja2.ext.i18n')
