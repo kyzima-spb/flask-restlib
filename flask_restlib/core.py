@@ -23,14 +23,13 @@ from flask_restlib.oauth2 import (
     AuthorizationServer,
     BearerTokenValidator
 )
-from flask_restlib.pagination import LimitOffsetPagination
+from flask_restlib.pagination import LimitOffsetPagination, TPagination
 from flask_restlib.routing import Router
 from flask_restlib.types import (
     Func,
     ErrorResponse,
     CatchExceptionCallable,
-    TSchema,
-    TPagination
+    TSchema
 )
 
 
