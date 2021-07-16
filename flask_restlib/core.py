@@ -7,6 +7,7 @@ import typing as t
 
 from authlib.integrations.flask_oauth2 import ResourceProtector
 from flask import Flask
+from flask_cors import CORS
 from flask_marshmallow import Marshmallow
 from marshmallow import Schema
 from webargs.flaskparser import parser
@@ -381,6 +382,7 @@ class RestLib:
     __slots__ = (
         '_deferred_error_handlers',
         'app',
+        'cors',
         'factory',
         'pagination_instance',
         'router',
@@ -400,6 +402,7 @@ class RestLib:
         self._deferred_error_handlers: dict[t.Type[Exception], CatchExceptionCallable] = {}
 
         self.app = app
+        self.cors = CORS()
         self.factory = factory
         self.pagination_instance = pagination_instance
         self.router = Router('api')
@@ -505,6 +508,7 @@ class RestLib:
             self._deferred_error_handlers[exc_type] = handler
 
     def init_app(self, app: Flask) -> None:
+        self.cors.init_app(app)
         self.ma.init_app(app)
 
         app.config.setdefault('RESTLIB_URL_PREFIX', '')
