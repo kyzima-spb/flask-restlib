@@ -19,7 +19,7 @@ Option                                       Description
 `RESTLIB_URL_PARAM_OFFSET`                   The name of the URL parameter
                                              that specifies the offset from the first item in the collection.
                                              Defaults to ``offset``.
-`RESTLIB_PAGINATION_LIMIT`                   The number of collection items per page.
+`RESTLIB_PAGINATION_LIMIT`                   The default number of collection items per page.
                                              Defaults to ``25``.
 `RESTLIB_SORTING_ENABLED`                    Allow sorting for collections.
                                              Defaults to ``True``.

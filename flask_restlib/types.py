@@ -38,6 +38,9 @@ CatchExceptionCallable = t.Callable[[AnyException, ErrorResponse], None]
 TView = t.Union[t.Callable, View]
 TSchema = t.TypeVar('TSchema', bound=Schema)
 
-# QueryAdapterType = t.TypeVar('QueryAdapterType', bound='AbstractQueryAdapter')
+TQueryAdapter = t.TypeVar('TQueryAdapter', bound='AbstractQueryAdapter')
+
+THttpHeader = tuple[str, str]
+THttpHeaders = list[THttpHeader]
 # ResourceManagerType = t.TypeVar('ResourceManagerType', bound='AbstractResourceManager')
 # AbstractFactoryType = t.TypeVar('AbstractFactoryType', bound='AbstractFactory')

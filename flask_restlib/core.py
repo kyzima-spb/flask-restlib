@@ -23,12 +23,14 @@ from flask_restlib.oauth2 import (
     AuthorizationServer,
     BearerTokenValidator
 )
+from flask_restlib.pagination import LimitOffsetPagination
 from flask_restlib.routing import Router
 from flask_restlib.types import (
     Func,
     ErrorResponse,
     CatchExceptionCallable,
-    TSchema
+    TSchema,
+    TPagination
 )
 
 
@@ -381,6 +383,7 @@ class RestLib:
         '_deferred_error_handlers',
         'app',
         'factory',
+        'pagination_instance',
         'router',
         'resource_protector',
         'authorization_server',
@@ -392,12 +395,14 @@ class RestLib:
         app: t.Optional[Flask] = None,
         *,
         factory: AbstractFactoryType,
+        pagination_instance: TPagination = LimitOffsetPagination(),
         auth_options: t.Optional[dict] = None
     ) -> None:
         self._deferred_error_handlers: dict[t.Type[Exception], CatchExceptionCallable] = {}
 
         self.app = app
         self.factory = factory
+        self.pagination_instance = pagination_instance
         self.router = Router('api')
 
         self.resource_protector = ResourceProtector()
@@ -505,9 +510,9 @@ class RestLib:
 
         app.config.setdefault('RESTLIB_URL_PREFIX', '')
         app.config.setdefault('RESTLIB_PAGINATION_ENABLED', True)
+        app.config.setdefault('RESTLIB_PAGINATION_LIMIT', 25)
         app.config.setdefault('RESTLIB_URL_PARAM_LIMIT', 'limit')
         app.config.setdefault('RESTLIB_URL_PARAM_OFFSET', 'offset')
-        app.config.setdefault('RESTLIB_PAGINATION_LIMIT', 25)
         app.config.setdefault('RESTLIB_SORTING_ENABLED', True)
         app.config.setdefault('RESTLIB_URL_PARAM_SORT', 'sort')
         app.config.setdefault('RESTLIB_REMEMBER_ME', False)

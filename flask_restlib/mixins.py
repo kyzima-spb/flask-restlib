@@ -1,9 +1,9 @@
 from __future__ import annotations
+
 from datetime import datetime
 import time
 import typing
 import typing as t
-
 
 from authlib.oauth2.rfc6749 import (
     AuthorizationCodeMixin as _AuthorizationCodeMixin,
@@ -12,12 +12,18 @@ from authlib.oauth2.rfc6749 import (
 )
 from authlib.oauth2.rfc6749.util import scope_to_list, list_to_scope
 from flask import request, abort, jsonify, current_app
+from flask.typing import ResponseReturnValue
 from webargs import fields
 from webargs import validate as validators
 from webargs.flaskparser import parser
 
 from flask_login import UserMixin as _UserMixin
-from flask_restlib.utils import strip_sorting_flag
+from flask_restlib.pagination import TPagination
+from flask_restlib.utils import strip_sorting_flag, current_restlib
+from flask_restlib.types import (
+    TQueryAdapter,
+    THttpHeaders
+)
 
 
 __all__ = (
@@ -33,12 +39,12 @@ __all__ = (
 class CreateMixin:
     """A mixin to add a new resource to the collection."""
 
-    def create(self):
-        schema = self.create_schema()
+    def create(self) -> ResponseReturnValue:
+        schema = self.create_schema() # type: ignore
         data = parser.parse(schema, location='json_or_form')
 
-        with self.create_resource_manager() as rm:
-            resource = rm.create(self.get_model_class(), data)
+        with self.create_resource_manager() as rm: # type: ignore
+            resource = rm.create(self.get_model_class(), data) # type: ignore
 
         return schema.dump(resource), 201
 
@@ -46,10 +52,10 @@ class CreateMixin:
 class DestroyMixin:
     """A mixin for removing a resource from a collection."""
 
-    def destroy(self, identifier):
-        resource = self.get_or_404(identifier)
+    def destroy(self, identifier) -> ResponseReturnValue:
+        resource = self.get_or_404(identifier) # type: ignore
 
-        with self.create_resource_manager() as rm:
+        with self.create_resource_manager() as rm: # type: ignore
             rm.delete(resource)
 
         return '', 204
@@ -62,39 +68,21 @@ class ListMixin:
     Attributes:
         filter_instance:
             ...
-        limit_param_name (str):
-            The name of the URL parameter that specifies the number of collection items per page.
-        offset_param_name (str):
-            The name of the URL parameter that specifies the offset from the first item in the collection.
         search_instance:
             ...
         sort_param_name (str):
             The name of the URL parameter that is used for sorting.
         sorting_fields (tuple):
             The names of the attributes of the model to be sorted.
+        pagination_instance:
+            An instance of the paginator.
     """
 
     filter_instance = None
-    limit_param_name = None
-    offset_param_name = None
     search_instance = None
+    pagination_instance: t.ClassVar = None
     sort_param_name = None
     sorting_fields = ()
-
-    def _get_pagination(self):
-        limit_param_name = self.limit_param_name or current_app.config['RESTLIB_URL_PARAM_LIMIT']
-        offset_param_name = self.offset_param_name or current_app.config['RESTLIB_URL_PARAM_OFFSET']
-        pagination_schema = {
-            limit_param_name: fields.Int(
-                missing=current_app.config['RESTLIB_PAGINATION_LIMIT'],
-                validate=validators.Range(min=1)
-            ),
-            offset_param_name: fields.Int(
-                missing=0,
-                validate=validators.Range(min=0)
-            ),
-        }
-        return parser.parse(pagination_schema, location='query')
 
     def _get_sort(self):
         def validate(v):
@@ -110,8 +98,15 @@ class ListMixin:
 
         return parser.parse(sort_schema, location='query').get('sort')
 
-    def list(self):
-        q = self.create_queryset()
+    def get_pagination(self) -> TPagination:
+        """Returns an instance of the paginator."""
+        if self.pagination_instance is None:
+            return current_restlib.pagination_instance
+        return self.pagination_instance
+
+    def list(self) -> ResponseReturnValue:
+        q: TQueryAdapter = self.create_queryset() # type: ignore
+        headers: THttpHeaders = []
 
         if self.filter_instance is not None:
             q.filter(self.filter_instance)
@@ -119,74 +114,77 @@ class ListMixin:
         if self.search_instance is not None:
             q.filter(self.search_instance)
 
-        if current_app.config['RESTLIB_PAGINATION_ENABLED']:
-            pagination = self._get_pagination()
-            q.limit(pagination['limit'])
-            q.offset(pagination['offset'])
-
         if current_app.config['RESTLIB_SORTING_ENABLED']:
             sort = self._get_sort()
             if sort:
                 q.order_by(*sort)
 
-        return jsonify(
-            self.create_schema(many=True).dump(q)
+        if current_app.config['RESTLIB_PAGINATION_ENABLED']:
+            pagination = self.get_pagination()
+            q, pagination_headers = pagination(q, request.url)
+            headers.extend(pagination_headers)
+
+        resp = jsonify(
+            self.create_schema(many=True).dump(q) # type: ignore
         )
+        resp.headers.extend(headers)
+
+        return resp
 
 
 class RetrieveMixin:
     """Mixin to get one resource from a collection"""
 
-    def retrieve(self, identifier):
-        return self.create_schema().dump(
-            self.get_or_404(identifier)
+    def retrieve(self, identifier) -> ResponseReturnValue:
+        return self.create_schema().dump( # type: ignore
+            self.get_or_404(identifier) # type: ignore
         )
 
 
 class UpdateMixin:
     """A mixin for editing a resource in a collection."""
 
-    def update(self, identifier):
-        resource = self.get_or_404(identifier)
+    def update(self, identifier) -> ResponseReturnValue:
+        resource = self.get_or_404(identifier) # type: ignore
 
-        schema = self.create_schema()
+        schema = self.create_schema() # type: ignore
         schema.context['resource'] = resource
         data = parser.parse(schema, location='json_or_form')
 
-        with self.create_resource_manager() as rm:
+        with self.create_resource_manager() as rm: # type: ignore
             resource = rm.update(resource, data)
 
         return schema.dump(resource)
 
 
 class CreateViewMixin(CreateMixin):
-    def post(self):
+    def post(self) -> ResponseReturnValue:
         return self.create()
 
 
 class DestroyViewMixin(DestroyMixin):
     pk_names = ('id',)
 
-    def delete(self, id):
+    def delete(self, id) -> ResponseReturnValue:
         return self.destroy(id)
 
 
 class ListViewMixin(ListMixin):
-    def get(self):
+    def get(self) -> ResponseReturnValue:
         return self.list()
 
 
 class RetrieveViewMixin(RetrieveMixin):
     pk_names = ('id',)
 
-    def get(self, id):
+    def get(self, id) -> ResponseReturnValue:
         return self.retrieve(id)
 
 
 class UpdateViewMixin(UpdateMixin):
     pk_names = ('id',)
 
-    def put(self, id):
+    def put(self, id) -> ResponseReturnValue:
         return self.update(id)
 
 
@@ -200,13 +198,13 @@ UserType = typing.TypeVar('UserType', bound='UserMixin')
 
 
 class AuthorizationCodeMixin(_AuthorizationCodeMixin):
-    def is_expired(self):
+    def is_expired(self) -> bool:
         return self.auth_time + 300 < time.time()
 
-    def get_redirect_uri(self):
+    def get_redirect_uri(self) -> str:
         return self.redirect_uri
 
-    def get_scope(self):
+    def get_scope(self) -> str:
         return self.scope
 
     def get_auth_time(self):
@@ -465,19 +463,19 @@ class ClientMixin(_ClientMixin):
 
 
 class TokenMixin(_TokenMixin):
-    def get_client_id(self):
+    def get_client_id(self) -> str:
         return self.client.get_client_id()
 
-    def get_scope(self):
+    def get_scope(self) -> str:
         return self.scope
 
-    def get_expires_in(self):
+    def get_expires_in(self) -> int:
         return self.expires_in
 
-    def get_expires_at(self):
+    def get_expires_at(self) -> int:
         return self.issued_at + self.expires_in
 
-    def is_refresh_token_valid(self):
+    def is_refresh_token_valid(self) -> bool:
         """Returns true if the token is not expired, false otherwise."""
         if self.revoked:
             return False
@@ -488,16 +486,16 @@ class TokenMixin(_TokenMixin):
 class UserMixin(_UserMixin):
     """A mixin for describing a user."""
 
-    def change_password(self, value):
+    def change_password(self, value: str) -> None:
         """Changes the current password to passed."""
         raise NotImplementedError
 
-    def check_password(self, password):
+    def check_password(self, password: str) -> bool:
         """Returns true if the password is valid, false otherwise."""
         raise NotImplementedError
 
     @classmethod
-    def find_by_username(cls, username):
+    def find_by_username(cls, username: str):
         """Returns the user with passed username, or None."""
         raise NotImplementedError
 
