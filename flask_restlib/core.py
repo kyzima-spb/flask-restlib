@@ -378,6 +378,34 @@ class AbstractFactory(metaclass=ABCMeta):
         """Creates and returns the OAuth2 code class."""
 
 
+class HTTPMethodOverrideMiddleware:
+    """
+    https://flask.palletsprojects.com/en/2.0.x/patterns/methodoverrides/
+    """
+
+    allowed_methods = frozenset([
+        'GET',
+        'HEAD',
+        'POST',
+        'DELETE',
+        'PUT',
+        'PATCH',
+        'OPTIONS'
+    ])
+    bodyless_methods = frozenset(['GET', 'HEAD', 'OPTIONS', 'DELETE'])
+
+    def __init__(self, app: t.Any) -> None:
+        self.app = app
+
+    def __call__(self, environ, start_response):
+        method = environ.get('HTTP_X_HTTP_METHOD_OVERRIDE', '').upper()
+        if method in self.allowed_methods:
+            environ['REQUEST_METHOD'] = method
+        if method in self.bodyless_methods:
+            environ['CONTENT_LENGTH'] = '0'
+        return self.app(environ, start_response)
+
+
 class RestLib:
     __slots__ = (
         '_deferred_error_handlers',
@@ -508,6 +536,8 @@ class RestLib:
             self._deferred_error_handlers[exc_type] = handler
 
     def init_app(self, app: Flask) -> None:
+        app.wsgi_app = HTTPMethodOverrideMiddleware(app.wsgi_app)
+
         self.cors.init_app(app)
         self.ma.init_app(app)
 
