@@ -12,10 +12,11 @@ from authlib.oauth2.rfc6749 import (
 )
 from authlib.oauth2.rfc6749.util import scope_to_list, list_to_scope
 from flask import request, abort, jsonify, current_app
-from flask.typing import ResponseReturnValue
+from flask.typing import ResponseReturnValue, HeadersValue
 from webargs import fields
 from webargs import validate as validators
 from webargs.flaskparser import parser
+from werkzeug.datastructures import Headers
 
 from flask_login import UserMixin as _UserMixin
 from flask_restlib.pagination import TPagination
@@ -39,6 +40,16 @@ __all__ = (
 class CreateMixin:
     """A mixin to add a new resource to the collection."""
 
+    def get_creation_headers(self, data) -> HeadersValue:
+        """Returns HTTP headers on successful resource creation."""
+        headers = Headers()
+        resource_url = data.get('_links', {}).get('self')
+
+        if resource_url:
+            headers.add('Location', resource_url)
+
+        return headers
+
     def create(self) -> ResponseReturnValue:
         schema = self.create_schema() # type: ignore
         data = parser.parse(schema, location='json_or_form')
@@ -46,7 +57,8 @@ class CreateMixin:
         with self.create_resource_manager() as rm: # type: ignore
             resource = rm.create(self.get_model_class(), data) # type: ignore
 
-        return schema.dump(resource), 201
+        data = schema.dump(resource)
+        return data, 201, self.get_creation_headers(data)
 
 
 class DestroyMixin:
