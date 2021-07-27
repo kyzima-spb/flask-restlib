@@ -11,7 +11,7 @@ Option                                       Description
 =========================================    ================================================================
 `RESTLIB_URL_PREFIX`                         URL prefix for all API endpoints.
                                              Defaults to ``''``.
-`RESTLIB_PAGINATION_ENABLED`                 Allowe pagination for collections.
+`RESTLIB_PAGINATION_ENABLED`                 Allow pagination for collections.
                                              Defaults to ``True``.
 `RESTLIB_URL_PARAM_LIMIT`                    The name of the URL parameter
                                              that specifies the number of collection items per page.
@@ -28,5 +28,9 @@ Option                                       Description
 `RESTLIB_REMEMBER_ME`                        Allow users to remember them on the current device.
                                              The option only affects the display of the flag,
                                              the logic needs to be implemented.
+                                             Defaults to ``False``.
+`RESTLIB_HTTP_CACHE_DISABLE`                 Disable cache for safe operations.
+                                             Defaults to ``False``.
+`RESTLIB_CONCURRENCY_CONTROL_DISABLE`        Disable concurrency control for unsafe operations.
                                              Defaults to ``False``.
 =========================================    ================================================================

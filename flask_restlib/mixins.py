@@ -11,7 +11,7 @@ from authlib.oauth2.rfc6749 import (
     TokenMixin as _TokenMixin
 )
 from authlib.oauth2.rfc6749.util import scope_to_list, list_to_scope
-from flask import request, abort, jsonify, current_app
+from flask import request, abort, current_app
 from flask.typing import ResponseReturnValue, HeadersValue
 from webargs import fields
 from webargs import validate as validators
@@ -65,7 +65,7 @@ class DestroyMixin:
     """A mixin for removing a resource from a collection."""
 
     def destroy(self, identifier) -> ResponseReturnValue:
-        resource = self.get_or_404(identifier) # type: ignore
+        resource = self.get_for_update(identifier) # type: ignore
 
         with self.create_resource_manager() as rm: # type: ignore
             rm.delete(resource)
@@ -136,20 +136,15 @@ class ListMixin:
             q, pagination_headers = pagination(q, request.url)
             headers.extend(pagination_headers)
 
-        resp = jsonify(
-            self.create_schema(many=True).dump(q) # type: ignore
-        )
-        resp.headers.extend(headers)
-
-        return resp
+        return self.create_schema(many=True).dump(q) # type: ignore
 
 
 class RetrieveMixin:
     """Mixin to get one resource from a collection"""
 
     def retrieve(self, identifier) -> ResponseReturnValue:
-        return self.create_schema().dump( # type: ignore
-            self.get_or_404(identifier) # type: ignore
+        return self.create_schema().dump(  # type: ignore
+            self.get_or_404(identifier)  # type: ignore
         )
 
 
@@ -157,7 +152,7 @@ class UpdateMixin:
     """A mixin for editing a resource in a collection."""
 
     def update(self, identifier) -> ResponseReturnValue:
-        resource = self.get_or_404(identifier) # type: ignore
+        resource = self.get_for_update(identifier) # type: ignore
 
         schema = self.create_schema() # type: ignore
         schema.context['resource'] = resource

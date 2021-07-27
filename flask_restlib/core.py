@@ -14,6 +14,7 @@ from webargs.flaskparser import parser
 from werkzeug.exceptions import HTTPException
 
 from flask_restlib import exceptions
+from flask_restlib.http import THttpCache, HttpCache
 from flask_restlib.mixins import (
     AuthorizationCodeType,
     ClientType,
@@ -413,6 +414,7 @@ class RestLib:
         'cors',
         'factory',
         'pagination_instance',
+        'http_cache_instance',
         'router',
         'resource_protector',
         'authorization_server',
@@ -425,6 +427,7 @@ class RestLib:
         *,
         factory: AbstractFactoryType,
         pagination_instance: TPagination = LimitOffsetPagination(),
+        http_cache_instance: THttpCache = HttpCache(),
         auth_options: t.Optional[dict] = None
     ) -> None:
         self._deferred_error_handlers: dict[t.Type[Exception], CatchExceptionCallable] = {}
@@ -433,6 +436,7 @@ class RestLib:
         self.cors = CORS()
         self.factory = factory
         self.pagination_instance = pagination_instance
+        self.http_cache_instance = http_cache_instance
         self.router = Router('api')
 
         self.resource_protector = ResourceProtector()
@@ -512,7 +516,7 @@ class RestLib:
         if callback is not None:
             callback(err, resp)
 
-        return resp.to_dict(), status_code, resp.headers
+        return resp.to_dict(), resp.status, resp.headers
 
     def catch_exception(
         self,
@@ -549,6 +553,8 @@ class RestLib:
         app.config.setdefault('RESTLIB_SORTING_ENABLED', True)
         app.config.setdefault('RESTLIB_URL_PARAM_SORT', 'sort')
         app.config.setdefault('RESTLIB_REMEMBER_ME', False)
+        app.config.setdefault('RESTLIB_HTTP_CACHE_DISABLE', False)
+        app.config.setdefault('RESTLIB_CONCURRENCY_CONTROL_DISABLE', False)
 
         app.extensions['restlib'] = self
 

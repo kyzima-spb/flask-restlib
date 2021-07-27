@@ -1,13 +1,26 @@
 from __future__ import annotations
 from collections import OrderedDict
 import typing
+import typing as t
 
-from flask import abort
+from flask import (
+    current_app, json,
+    abort, request, Response, jsonify
+)
 from flask.views import MethodView
+from flask.typing import ResponseValue, ResponseReturnValue
+from marshmallow import Schema
+from werkzeug.datastructures import Headers
+from werkzeug.exceptions import (
+    PreconditionRequired,
+    PreconditionFailed
+)
+from werkzeug.http import generate_etag
 
 from flask_restlib import current_restlib
 from flask_restlib import mixins
 from flask_restlib.core import AbstractFactory, AbstractResourceManager
+from flask_restlib.http import THttpCache
 from flask_restlib.permissions import Permission
 from flask_restlib.types import TSchema
 
@@ -16,6 +29,9 @@ __all__ = (
     'ApiView',
     'CreateView', 'DestroyView', 'ListView', 'RetrieveView', 'UpdateView',
 )
+
+
+TIdentifier = t.Union[t.Any, tuple, dict]
 
 
 class ApiView(MethodView):
@@ -32,9 +48,13 @@ class ApiView(MethodView):
         schema_class: A reference to the class of the schema to use for serialization.
     """
 
+    concurrency_control_disable: t.ClassVar[bool] = False
     factory_class = None
+    http_cache_instance = None
+    http_cache_disable: t.ClassVar[bool] = False
     queryset = None
-    lookup_names = ()
+    lookup_names: t.ClassVar[tuple[str, ...]] = ()
+    methods_returning_etag: t.ClassVar[set[str]] = {'GET', 'HEAD', 'POST', 'PUT', 'PATCH'}
     model_class = None
     permissions: list[Permission] = []
     schema_class = None
@@ -85,7 +105,14 @@ class ApiView(MethodView):
         """
         return self.get_schema_class()(*args, **kwargs)
 
-    def dispatch_request(self, *args, **kwargs):
+    def dispatch_request(self, *args: t.Any, **kwargs: t.Any) -> ResponseReturnValue:
+        self.check_permissions()
+
+        cache = self.get_http_cache()
+
+        if cache and cache.check():
+            return '', 304
+
         if self.lookup_names:
             lookup = OrderedDict()
 
@@ -95,9 +122,45 @@ class ApiView(MethodView):
 
             kwargs['id'] = lookup
 
-        self.check_permissions()
+        resp = self.normalize_response_value(
+            super().dispatch_request(*args, **kwargs)
+        )
 
-        return super().dispatch_request(*args, **kwargs)
+        if cache:
+            cache.update(resp)
+
+        return resp
+
+    def generate_etag(
+        self, data: t.Any, schema: Schema = None, **extra_data: t.Any
+    ) -> str:
+        """
+        Generates and returns an ETag from data.
+
+        Arguments:
+            data (typing.Any): data to use to generate ETag.
+            schema (Schema): marshmallow schema to dump data with before hashing.
+            extra_data (dict): extra data to add before hashing.
+
+        Note:
+            Idea borrowed from flask-smorest.
+        """
+        if schema is not None:
+            data = schema.dump(data)
+        if extra_data:
+            data = (data, extra_data)
+        data = json.dumps(data, sort_keys=True)
+        return generate_etag(bytes(data, 'utf-8'))
+
+    def get_http_cache(self) -> t.Optional[THttpCache]:
+        """Returns an instance of the ETag."""
+        if self.http_cache_disable or current_app.config['RESTLIB_HTTP_CACHE_DISABLE']:
+            return None
+
+        if self.http_cache_instance is None:
+            return current_restlib.http_cache_instance
+
+        return self.http_cache_instance
 
     def get_model_class(self):
         """
@@ -110,12 +173,51 @@ class ApiView(MethodView):
             )
         return self.model_class
 
+    def get_for_update(
+        self,
+        identifier: TIdentifier,
+        description: t.Optional[str] = None,
+        model_class: t.Optional[t.Any] = None,
+        as_create: bool = False
+    ) -> t.Any:
+        """
+        Returns a resource based on the given identifier to perform an unsafe operation.
+
+        If concurrency control is disabled, then the behavior is the same as `ApiView.get_or_404()`.
+
+        Arguments:
+            model_class (type): A reference to the model class that describes the REST resource.
+            identifier: A scalar, tuple, or dictionary representing the primary key.
+            description (str):
+            as_create (bool):
+
+        Raises:
+            PreconditionRequired: If the request does not contain If-Match headers.
+            PreconditionFailed: If the request cannot be fulfilled.
+        """
+        if self.concurrency_control_disable or current_app.config['RESTLIB_CONCURRENCY_CONTROL_DISABLE']:
+            return self.get_or_404(identifier, description, model_class)
+
+        if not as_create and not request.if_match:
+            raise PreconditionRequired('ETag not provided for resource operation.')
+
+        resource = self.get_or_404(identifier, description, model_class)
+        etag = self.generate_etag(resource, self.create_schema())
+
+        if not request.if_match.is_weak(etag):
+            raise PreconditionFailed(
+                'The If-Match header value does not match the ETag '
+                'computed to represent the resource that is currently stored on the server.'
+            )
+
+        return resource
+
     def get_or_404(
         self,
-        identifier: typing.Union[typing.Any, tuple, dict],
-        description: typing.Optional[str] = None,
-        model_class: typing.Optional[typing.Any] = None
-    ) -> typing.Any:
+        identifier: TIdentifier,
+        description: t.Optional[str] = None,
+        model_class: t.Optional[t.Any] = None
+    ) -> t.Any:
         """
         Returns a resource based on the given identifier, throws an HTTP 404 error.
 
@@ -151,6 +253,56 @@ class ApiView(MethodView):
             )
 
         return self.schema_class
+
+    def normalize_response_value(self, rv: ResponseReturnValue) -> Response:
+        """Converts the return value from a view to an instance of Response class."""
+        status_code = 200
+        headers = None
+
+        if isinstance(rv, tuple):
+            count = len(rv)
+
+            if count == 3:
+                rv, status_code, headers = rv
+            elif count == 2:
+                if isinstance(rv[1], int):
+                    rv, status_code = rv
+                else:
+                    rv, headers = rv
+            else:
+                rv = rv[0]
+
+        if isinstance(rv, current_app.response_class):
+            if status_code != 200:
+                rv.status_code = status_code
+            if headers is not None:
+                rv.headers.update(headers)
+        else:
+            rv = self.make_response(
+                rv, status_code=status_code, headers=Headers(headers)
+            )
+
+        return rv
+
+    def make_response(
+        self,
+        rv: ResponseValue,
+        status_code: int = 200,
+        headers: Headers = None
+    ) -> Response:
+        """Creates and returns an instance of Response class."""
+        # response_class = current_app.response_class
+        resp = jsonify(rv)
+        resp.status_code = status_code
+
+        if headers is not None:
+            resp.headers.update(headers)
+
+        if request.method in self.methods_returning_etag:
+            if 'ETag' not in resp.headers:
+                resp.set_etag(self.generate_etag(rv), weak=True)
+
+        return resp
 
 
 class CreateView(mixins.CreateViewMixin, ApiView):

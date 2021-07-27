@@ -16,7 +16,7 @@ __all__ = (
 )
 
 
-current_restlib = LocalProxy(lambda: current_app.extensions['restlib'])
+current_restlib: "Restlib" = LocalProxy(lambda: current_app.extensions['restlib'])  # type: ignore
 
 
 def F(column):
