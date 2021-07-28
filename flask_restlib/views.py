@@ -22,16 +22,13 @@ from flask_restlib import mixins
 from flask_restlib.core import AbstractFactory, AbstractResourceManager
 from flask_restlib.http import THttpCache
 from flask_restlib.permissions import Permission
-from flask_restlib.types import TSchema
+from flask_restlib.types import TIdentifier, TSchema
 
 
 __all__ = (
     'ApiView',
     'CreateView', 'DestroyView', 'ListView', 'RetrieveView', 'UpdateView',
 )
-
-
-TIdentifier = t.Union[t.Any, tuple, dict]
 
 
 class ApiView(MethodView):
@@ -114,13 +111,9 @@ class ApiView(MethodView):
             return '', 304
 
         if self.lookup_names:
-            lookup = OrderedDict()
-
-            for name in self.lookup_names:
-                if name in kwargs:
-                    lookup[name] = kwargs.pop(name)
-
-            kwargs['id'] = lookup
+            kwargs['id'] = OrderedDict(
+                (name, kwargs.pop(name)) for name in self.lookup_names if name in kwargs
+            )
 
         resp = self.normalize_response_value(
             super().dispatch_request(*args, **kwargs)

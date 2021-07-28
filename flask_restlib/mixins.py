@@ -1,8 +1,6 @@
 from __future__ import annotations
-
 from datetime import datetime
 import time
-import typing
 import typing as t
 
 from authlib.oauth2.rfc6749 import (
@@ -22,6 +20,7 @@ from flask_login import UserMixin as _UserMixin
 from flask_restlib.pagination import TPagination
 from flask_restlib.utils import strip_sorting_flag, current_restlib
 from flask_restlib.types import (
+    TIdentifier,
     TQueryAdapter,
     THttpHeaders
 )
@@ -64,7 +63,7 @@ class CreateMixin:
 class DestroyMixin:
     """A mixin for removing a resource from a collection."""
 
-    def destroy(self, identifier) -> ResponseReturnValue:
+    def destroy(self, identifier: TIdentifier) -> ResponseReturnValue:
         resource = self.get_for_update(identifier) # type: ignore
 
         with self.create_resource_manager() as rm: # type: ignore
@@ -142,7 +141,7 @@ class ListMixin:
 class RetrieveMixin:
     """Mixin to get one resource from a collection"""
 
-    def retrieve(self, identifier) -> ResponseReturnValue:
+    def retrieve(self, identifier: TIdentifier) -> ResponseReturnValue:
         return self.create_schema().dump(  # type: ignore
             self.get_or_404(identifier)  # type: ignore
         )
@@ -151,7 +150,7 @@ class RetrieveMixin:
 class UpdateMixin:
     """A mixin for editing a resource in a collection."""
 
-    def update(self, identifier) -> ResponseReturnValue:
+    def update(self, identifier: TIdentifier) -> ResponseReturnValue:
         resource = self.get_for_update(identifier) # type: ignore
 
         schema = self.create_schema() # type: ignore
@@ -170,9 +169,9 @@ class CreateViewMixin(CreateMixin):
 
 
 class DestroyViewMixin(DestroyMixin):
-    pk_names = ('id',)
+    lookup_names = ('id',)
 
-    def delete(self, id) -> ResponseReturnValue:
+    def delete(self, id: TIdentifier) -> ResponseReturnValue:
         return self.destroy(id)
 
 
@@ -182,26 +181,26 @@ class ListViewMixin(ListMixin):
 
 
 class RetrieveViewMixin(RetrieveMixin):
-    pk_names = ('id',)
+    lookup_names = ('id',)
 
-    def get(self, id) -> ResponseReturnValue:
+    def get(self, id: TIdentifier) -> ResponseReturnValue:
         return self.retrieve(id)
 
 
 class UpdateViewMixin(UpdateMixin):
-    pk_names = ('id',)
+    lookup_names = ('id',)
 
-    def put(self, id) -> ResponseReturnValue:
+    def put(self, id: TIdentifier) -> ResponseReturnValue:
         return self.update(id)
 
 
 # OAuth2 Mixins
 
 
-AuthorizationCodeType = typing.TypeVar('AuthorizationCodeType', bound=_AuthorizationCodeMixin)
-ClientType = typing.TypeVar('ClientType', bound=_ClientMixin)
-TokenType = typing.TypeVar('TokenType', bound='TokenMixin')
-UserType = typing.TypeVar('UserType', bound='UserMixin')
+AuthorizationCodeType = t.TypeVar('AuthorizationCodeType', bound=_AuthorizationCodeMixin)
+ClientType = t.TypeVar('ClientType', bound=_ClientMixin)
+TokenType = t.TypeVar('TokenType', bound='TokenMixin')
+UserType = t.TypeVar('UserType', bound='UserMixin')
 
 
 class AuthorizationCodeMixin(_AuthorizationCodeMixin):
@@ -214,10 +213,10 @@ class AuthorizationCodeMixin(_AuthorizationCodeMixin):
     def get_scope(self) -> str:
         return self.scope
 
-    def get_auth_time(self):
+    def get_auth_time(self) -> int:
         return self.auth_time
 
-    def get_nonce(self):
+    def get_nonce(self) -> str:
         return self.nonce
 
 
@@ -502,10 +501,10 @@ class UserMixin(_UserMixin):
         raise NotImplementedError
 
     @classmethod
-    def find_by_username(cls, username: str):
+    def find_by_username(cls, username: str) -> t.Any:
         """Returns the user with passed username, or None."""
         raise NotImplementedError
 
-    def get_user_id(self):
+    def get_user_id(self) -> t.Any:
         """Returns user id, requires Authlib."""
         return self.get_id()

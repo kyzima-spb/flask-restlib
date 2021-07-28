@@ -35,6 +35,7 @@ Func = t.TypeVar('Func', bound=t.Callable[..., t.Any])
 AnyException = t.TypeVar('AnyException', bound=Exception)
 CatchExceptionCallable = t.Callable[[AnyException, ErrorResponse], None]
 
+TIdentifier = t.Union[t.Any, tuple, dict]
 TView = t.Union[t.Callable, View]
 TSchema = t.TypeVar('TSchema', bound=Schema)
 
