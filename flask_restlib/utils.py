@@ -2,7 +2,6 @@ from __future__ import annotations
 from importlib import import_module
 import re
 import typing as t
-from urllib.parse import urlencode, parse_qs, urlsplit, urlunsplit
 
 from flask import current_app
 from werkzeug.local import LocalProxy
@@ -52,22 +51,6 @@ def camel_to_snake(name: str) -> str:
 def snake_to_camel(name: str) -> str:
     """Converts a snake case string to a camelcase string."""
     return ''.join(name.title().split('_'))
-
-
-def url_update_query_string(url: str, params: dict[str, t.Any]) -> str:
-    """
-    Given a URL, set or replace a query parameters and return the modified URL.
-
-    >>> url_update_query_string('https://example.com?offset=5&limit=25', {
-    ...     'offset': 0,
-    ... })
-    'https://example.com?offset=0&limit=25'
-    """
-    r = urlsplit(url)
-    q = parse_qs(r.query)
-    q.update(params)
-    r = r._replace(query=urlencode(q, doseq=True))
-    return urlunsplit(r)
 
 
 def import_string(dotted_path):

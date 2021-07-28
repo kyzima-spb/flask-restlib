@@ -5,8 +5,32 @@ https://developer.mozilla.org/ru/docs/Web/HTTP/Headers/ETag
 from __future__ import annotations
 from abc import ABCMeta, abstractmethod
 import typing as t
+from urllib.parse import urlencode, parse_qs, urlsplit, urlunsplit
 
 from flask import request, Response
+
+
+__all__ = (
+    'url_update_query_string',
+    'AbstractHttpCache',
+    'HttpCache',
+)
+
+
+def url_update_query_string(url: str, params: dict[str, t.Any]) -> str:
+    """
+    Given a URL, set or replace a query parameters and return the modified URL.
+
+    >>> url_update_query_string('https://example.com?offset=5&limit=25', {
+    ...     'offset': 0,
+    ... })
+    'https://example.com?offset=0&limit=25'
+    """
+    r = urlsplit(url)
+    q = parse_qs(r.query)
+    q.update(params)
+    r = r._replace(query=urlencode(q, doseq=True))
+    return urlunsplit(r)
 
 
 class AbstractHttpCache(metaclass=ABCMeta):
