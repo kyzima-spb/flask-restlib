@@ -1,8 +1,8 @@
 from __future__ import annotations
+from functools import lru_cache
 import secrets
 import typing
 import typing as t
-from typing import ClassVar, Optional
 from uuid import uuid4
 
 from authlib.oauth2 import OAuth2Error
@@ -13,6 +13,7 @@ from authlib.oauth2.rfc6749 import grants
 from authlib.oauth2.rfc6749.wrappers import OAuth2Request
 from authlib.oauth2.rfc6750 import BearerTokenValidator as _BearerTokenValidator
 from authlib.oauth2.rfc7009 import RevocationEndpoint
+from authlib.oauth2.rfc7636 import CodeChallenge
 from flask import (
     Flask, Blueprint, abort,
     current_app, request,
@@ -32,7 +33,8 @@ from flask_restlib.utils import (
     F,
     current_restlib,
     query_adapter,
-    resource_manager
+    resource_manager,
+    camel_to_list
 )
 from flask_useful.views import MethodView, FormView
 from flask_useful.utils import flash
@@ -41,7 +43,7 @@ from werkzeug.local import LocalProxy
 from wtforms.validators import ValidationError
 
 
-authorization_server = LocalProxy(
+authorization_server: AuthorizationServer = LocalProxy(
     lambda: current_restlib.authorization_server
 )
 
@@ -50,7 +52,7 @@ def generate_client_id(length: int) -> str:
     while 1:
         client_id = secrets.token_hex(length // 2)
 
-        if authorization_server.query_client(client_id) is None:
+        if validate_client_id(client_id):
             return client_id
 
 
@@ -58,12 +60,27 @@ def generate_client_secret(length: int) -> str:
     return secrets.token_hex(length // 2)
 
 
+def validate_client_id(client_id: str) -> bool:
+    return not (
+        not client_id or authorization_server.query_client(client_id) is not None
+    )
+
+
 class AuthorizationCodeGrant(grants.AuthorizationCodeGrant):
+    TOKEN_ENDPOINT_AUTH_METHODS = ['client_secret_basic', 'client_secret_post', 'none']
+
     def save_authorization_code(
         self,
         code: str,
         request: OAuth2Request
     ) -> AuthorizationCodeType:
+        code_challenge = request.data.get('code_challenge')
+        code_challenge_method = request.data.get('code_challenge_method')
+
+        if code_challenge_method is None and code_challenge is not None:
+            # https://datatracker.ietf.org/doc/html/rfc7636#section-4.3
+            code_challenge_method = 'plain'
+
         with resource_manager() as rm:
             return rm.create(authorization_server.OAuth2Code, {
                 'id': uuid4(),
@@ -72,6 +89,8 @@ class AuthorizationCodeGrant(grants.AuthorizationCodeGrant):
                 'redirect_uri': request.redirect_uri,
                 'scope': request.scope,
                 'user': request.user._get_current_object(),
+                'code_challenge': code_challenge,
+                'code_challenge_method': code_challenge_method,
             })
 
     def query_authorization_code(
@@ -151,7 +170,7 @@ class RevokeToken(RevocationEndpoint):
         token: str,
         token_type_hint: str,
         client: ClientType
-    ) -> Optional[TokenType]:
+    ) -> t.Optional[TokenType]:
         current_app.logger.debug(f'Revocation token: {token}, type hint: {token_type_hint}')
 
         q = query_adapter(authorization_server.OAuth2Token).filter_by(client=client)
@@ -314,6 +333,8 @@ class AuthorizationServer(_AuthorizationServer):
 
         super().__init__(save_token=save_token, query_client=query_client)
 
+        self._registered_grants = []
+
         self.OAuth2User = user_model
         self.OAuth2Client = client_model
         self.OAuth2Token = token_model
@@ -342,8 +363,6 @@ class AuthorizationServer(_AuthorizationServer):
         query_client: typing.Optional[typing.Callable] = None,
         save_token: typing.Optional[typing.Callable] = None
     ) -> None:
-        super().init_app(app, query_client=query_client, save_token=save_token)
-
         app.config.setdefault('RESTLIB_OAUTH2_URL_PREFIX', '/oauth')
         app.config.setdefault('RESTLIB_OAUTH2_AUTHORIZATION_CODE_GRANT', True)
         app.config.setdefault('RESTLIB_OAUTH2_IMPLICIT_GRANT', True)
@@ -351,10 +370,15 @@ class AuthorizationServer(_AuthorizationServer):
         app.config.setdefault('RESTLIB_OAUTH2_CLIENT_CREDENTIALS_GRANT', True)
         app.config.setdefault('RESTLIB_OAUTH2_REFRESH_TOKEN_GRANT', True)
 
+        if app.config['RESTLIB_OAUTH2_REFRESH_TOKEN_GRANT']:
+            app.config.setdefault('OAUTH2_REFRESH_TOKEN_GENERATOR', True)
+
+        super().init_app(app, query_client=query_client, save_token=save_token)
+
         app.extensions['restlib_oauth2'] = self
 
         if app.config['RESTLIB_OAUTH2_AUTHORIZATION_CODE_GRANT']:
-            self.register_grant(AuthorizationCodeGrant)
+            self.register_grant(AuthorizationCodeGrant, [CodeChallenge(required=True)])
 
         if app.config['RESTLIB_OAUTH2_IMPLICIT_GRANT']:
             self.register_grant(grants.ImplicitGrant)
@@ -402,3 +426,33 @@ class AuthorizationServer(_AuthorizationServer):
                 'scope': token_data.pop('scope', ''),
                 **token_data,
             })
+
+    @lru_cache
+    def get_registered_grants(
+        self,
+        *,
+        only_public: bool = False,
+        only_confidential: bool = False
+    ) -> dict:
+        """Returns registered grants."""
+        grants = {}
+
+        for grant in self._registered_grants:
+            flag = not (only_public ^ only_confidential)
+            auth_methods = set(grant.TOKEN_ENDPOINT_AUTH_METHODS)
+
+            if not flag and only_public:
+                flag = bool(auth_methods & {'none'})
+
+            if not flag and only_confidential:
+                flag = (auth_methods ^ {'none'})
+
+            if flag:
+                grants[' '.join(camel_to_list(grant.__name__))] = grant
+
+        return grants
+
+    def register_grant(self, grant_cls, extensions: list = None) -> None:
+        """Register a grant class into the endpoint registry."""
+        super().register_grant(grant_cls, extensions)
+        self._registered_grants.append(grant_cls)

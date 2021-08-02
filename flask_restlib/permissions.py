@@ -67,4 +67,5 @@ class TokenHasScope(Permission):
             if not self.optional:
                 raise AuthenticationError(err.get_error_description()) from err
         except OAuth2Error as err:
-            raise AuthorizationError(err.get_error_description()) from err
+            msg = err.get_error_description() or str(err)
+            raise AuthorizationError(msg) from err

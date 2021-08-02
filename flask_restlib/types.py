@@ -32,6 +32,7 @@ class ErrorResponse:
 
 
 Func = t.TypeVar('Func', bound=t.Callable[..., t.Any])
+TFunc = t.TypeVar('TFunc', bound=t.Callable[..., t.Any])
 AnyException = t.TypeVar('AnyException', bound=Exception)
 CatchExceptionCallable = t.Callable[[AnyException, ErrorResponse], None]
 

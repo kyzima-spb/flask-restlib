@@ -14,6 +14,7 @@ from webargs.flaskparser import parser
 from werkzeug.exceptions import HTTPException
 
 from flask_restlib import exceptions
+from flask_restlib.cli import api_cli
 from flask_restlib.http import THttpCache, HttpCache
 from flask_restlib.mixins import (
     AuthorizationCodeType,
@@ -562,6 +563,7 @@ class RestLib:
             app.register_error_handler(exc_type, handler)
 
         app.register_blueprint(self.router.bp, url_prefix=app.config['RESTLIB_URL_PREFIX'])
+        app.cli.add_command(api_cli)
 
         if not hasattr(app.jinja_env, 'install_gettext_callables'):
             app.jinja_env.add_extension('jinja2.ext.i18n')
