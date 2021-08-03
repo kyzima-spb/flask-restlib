@@ -32,6 +32,7 @@ setup(
         'Flask-Login>=0.5',
         'flask-marshmallow>=0.14',
         'flask-useful>=0.1.dev18',
+        'Flask-WTF>=0.15',
         'webargs>=8.0',
         'PyInquirer',
         # 'PyInquirer @ https://github.com/CITGuru/PyInquirer/archive/refs/heads/master.zip',
