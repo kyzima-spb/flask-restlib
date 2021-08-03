@@ -6,9 +6,9 @@ import typing as t
 from flask import current_app
 from flask_restlib.http import url_update_query_string
 from flask_restlib.types import (
-    TQueryAdapter,
     THttpHeader,
-    THttpHeaders
+    THttpHeaders,
+    TQueryAdapter,
 )
 from webargs import fields
 from webargs import validate as validators

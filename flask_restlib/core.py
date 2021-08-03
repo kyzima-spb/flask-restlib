@@ -1,8 +1,8 @@
 from __future__ import annotations
 from abc import ABCMeta, abstractmethod
 import copy
-
 from functools import partial
+from types import TracebackType
 import typing as t
 
 from authlib.integrations.flask_oauth2 import ResourceProtector
@@ -15,7 +15,7 @@ from werkzeug.exceptions import HTTPException
 
 from flask_restlib import exceptions
 from flask_restlib.cli import api_cli
-from flask_restlib.http import THttpCache, HttpCache
+from flask_restlib.http import THttpCache, HttpCache, HTTPMethodOverrideMiddleware
 from flask_restlib.mixins import (
     AuthorizationCodeType,
     ClientType,
@@ -29,10 +29,16 @@ from flask_restlib.oauth2 import (
 from flask_restlib.pagination import LimitOffsetPagination, TPagination
 from flask_restlib.routing import Router
 from flask_restlib.types import (
-    Func,
     ErrorResponse,
     CatchExceptionCallable,
-    TSchema
+    TFactory,
+    TFunc,
+    TException,
+    TIdentifier,
+    TQueryFilter,
+    TResourceManager,
+    TQueryAdapter,
+    TSchema,
 )
 
 
@@ -45,11 +51,6 @@ __all__ = (
 
 
 DEFAULT_HTTP_ERROR_STATUS = 400
-
-
-QueryAdapterType = t.TypeVar('QueryAdapterType', bound='AbstractQueryAdapter')
-ResourceManagerType = t.TypeVar('ResourceManagerType', bound='AbstractResourceManager')
-AbstractFactoryType = t.TypeVar('AbstractFactoryType', bound='AbstractFactory')
 
 
 class AbstractFilter(metaclass=ABCMeta):
@@ -162,15 +163,17 @@ class AbstractQueryAdapter(metaclass=ABCMeta):
 
     @abstractmethod
     def exists(self) -> bool:
-        """Returns true if a resource with the specified search criteria exists in persistent storage."""
+        """
+        Returns true if a resource with the specified search criteria exists in persistent storage.
+        """
 
-    def filter(self, filter_callback):
+    def filter(self: TQueryAdapter, filter_callback: TQueryFilter) -> TQueryAdapter:
         """Applies this filter to the current queryset."""
         self._base_query = filter_callback(self.make_query())
         return self
 
     @abstractmethod
-    def filter_by(self, **kwargs: t.Any) -> AbstractQueryAdapter:
+    def filter_by(self: TQueryAdapter, **kwargs: t.Any) -> TQueryAdapter:
         """Applies these criteria to the current queryset."""
 
     def first(self) -> t.Optional[t.Any]:
@@ -180,7 +183,7 @@ class AbstractQueryAdapter(metaclass=ABCMeta):
         result = copy.copy(self).limit(1).all()
         return result[0] if len(result) > 0 else None
 
-    def limit(self, value: int) -> AbstractQueryAdapter:
+    def limit(self: TQueryAdapter, value: int) -> TQueryAdapter:
         """Applies a limit on the number of rows selected by the query."""
         self._limit = value
         return self
@@ -222,16 +225,16 @@ class AbstractQueryAdapter(metaclass=ABCMeta):
 
         return result[0]
 
-    def offset(self, value: int) -> AbstractQueryAdapter:
+    def offset(self: TQueryAdapter, value: int) -> TQueryAdapter:
         """Applies the offset from which the query will select rows."""
         self._offset = value
         return self
 
     def order_by(
-        self,
+        self: TQueryAdapter,
         column: str,
-        *columns: t.Tuple[str]
-    ) -> AbstractQueryAdapter:
+        *columns: tuple[str]
+    ) -> TQueryAdapter:
         """Applies sorting by attribute."""
         self._order_by.append((column, *columns))
         return self
@@ -240,15 +243,20 @@ class AbstractQueryAdapter(metaclass=ABCMeta):
 class AbstractResourceManager(metaclass=ABCMeta):
     """Manager for working with REST resources."""
 
-    def __enter__(self):
+    def __enter__(self: TResourceManager) -> TResourceManager:
         return self
 
-    def __exit__(self, err_type, err, traceback):
+    def __exit__(
+        self,
+        err_type: t.Type[TException],
+        err: TException,
+        traceback: TracebackType
+    ) -> None:
         if err is None:
             self.commit()
 
     @abstractmethod
-    def commit(self):
+    def commit(self) -> None:
         """Saves the changes to persistent storage."""
 
     @abstractmethod
@@ -278,7 +286,7 @@ class AbstractResourceManager(metaclass=ABCMeta):
     def get(
         self,
         model_class: t.Type[t.Any],
-        identifier: t.Union[t.Any, tuple, dict]
+        identifier: TIdentifier
     ) -> t.Optional[t.Any]:
         """
         Returns a resource based on the given identifier, or None if not found.
@@ -338,13 +346,13 @@ class AbstractFactory(metaclass=ABCMeta):
         """
 
     @abstractmethod
-    def create_query_adapter(self, base_query: t.Any) -> AbstractQueryAdapter:
+    def create_query_adapter(self, base_query: t.Any) -> TQueryAdapter:
         """
         Creates and returns a queryset for retrieving resources from persistent storage.
         """
 
     @abstractmethod
-    def create_resource_manager(self):
+    def create_resource_manager(self) -> TResourceManager:
         """Creates and returns a resource manager instance."""
 
     @abstractmethod
@@ -357,7 +365,7 @@ class AbstractFactory(metaclass=ABCMeta):
         """
 
     @abstractmethod
-    def get_auto_schema_class(self):
+    def get_auto_schema_class(self) -> t.Type[TSchema]:
         """
         Returns a reference to the base class of the schema
         used in serialization and validation.
@@ -368,7 +376,7 @@ class AbstractFactory(metaclass=ABCMeta):
         """Returns a reference to the base auto schema options class."""
 
     @abstractmethod
-    def get_schema_class(self):
+    def get_schema_class(self) -> t.Type[TSchema]:
         """
         Returns a reference to the base class of the schema
         used in serialization and validation.
@@ -391,34 +399,6 @@ class AbstractFactory(metaclass=ABCMeta):
         """Creates and returns the OAuth2 code class."""
 
 
-class HTTPMethodOverrideMiddleware:
-    """
-    https://flask.palletsprojects.com/en/2.0.x/patterns/methodoverrides/
-    """
-
-    allowed_methods = frozenset([
-        'GET',
-        'HEAD',
-        'POST',
-        'DELETE',
-        'PUT',
-        'PATCH',
-        'OPTIONS'
-    ])
-    bodyless_methods = frozenset(['GET', 'HEAD', 'OPTIONS', 'DELETE'])
-
-    def __init__(self, app: t.Any) -> None:
-        self.app = app
-
-    def __call__(self, environ, start_response):
-        method = environ.get('HTTP_X_HTTP_METHOD_OVERRIDE', '').upper()
-        if method in self.allowed_methods:
-            environ['REQUEST_METHOD'] = method
-        if method in self.bodyless_methods:
-            environ['CONTENT_LENGTH'] = '0'
-        return self.app(environ, start_response)
-
-
 class RestLib:
     __slots__ = (
         '_deferred_error_handlers',
@@ -439,18 +419,18 @@ class RestLib:
         self,
         app: t.Optional[Flask] = None,
         *,
-        factory: AbstractFactoryType,
-        pagination_instance: TPagination = LimitOffsetPagination(),
-        http_cache_instance: THttpCache = HttpCache(),
-        auth_options: t.Optional[dict] = None
+        factory: TFactory,
+        pagination_instance: TPagination = None,
+        http_cache_instance: THttpCache = None,
+        auth_options: dict = None
     ) -> None:
         self._deferred_error_handlers: dict[t.Type[Exception], CatchExceptionCallable] = {}
 
         self.app = app
         self.cors = CORS()
         self.factory = factory
-        self.pagination_instance = pagination_instance
-        self.http_cache_instance = http_cache_instance
+        self.pagination_instance = pagination_instance or LimitOffsetPagination()
+        self.http_cache_instance = http_cache_instance or HttpCache()
         self.router = Router('api')
 
         self.Schema = factory.get_schema_class()
@@ -633,7 +613,7 @@ class RestLib:
         self,
         exc_type: t.Type[Exception],
         status_code: int = DEFAULT_HTTP_ERROR_STATUS
-    ) -> t.Callable[[Func], Func]:
+    ) -> t.Callable[[TFunc], TFunc]:
         """
         The decorator registers the function as a handler for given type of exception.
 
@@ -641,7 +621,12 @@ class RestLib:
             exc_type: the type of exception to catch.
             status_code (int): HTTP response code, defaults to 400.
         """
-        def decorator(callback: Func) -> Func:
+        def decorator(callback: TFunc) -> TFunc:
             self.catch_exception(exc_type, status_code, callback)
             return callback
         return decorator
+
+
+# TQueryAdapter = t.TypeVar('TQueryAdapter', bound=AbstractQueryAdapter)
+# TResourceManager = t.TypeVar('TResourceManager', bound=AbstractResourceManager)
+# TFactory = t.TypeVar('TFactory', bound=AbstractFactory)

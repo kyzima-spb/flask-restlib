@@ -1,6 +1,6 @@
 from __future__ import annotations
 from functools import lru_cache, partial
-import typing
+import typing as t
 
 import sqlalchemy as sa
 from sqlalchemy.orm import Query
@@ -12,7 +12,7 @@ from flask_restlib.core import (
     AbstractQueryAdapter,
     AbstractResourceManager,
     AbstractFactory,
-    QueryExpression
+    QueryExpression,
 )
 from authlib.integrations.sqla_oauth2 import (
     OAuth2TokenMixin as _OAuth2TokenMixin,
@@ -40,6 +40,12 @@ from sqlalchemy_utils.functions import (
 )
 
 from flask_restlib.schemas import RestlibMixin
+from flask_restlib.types import (
+    TIdentifier,
+    TQueryAdapter,
+    TResourceManager,
+    TSchema,
+)
 
 
 __all__ = (
@@ -48,7 +54,7 @@ __all__ = (
 )
 
 
-def create_fk_column(model_class):
+def create_fk_column(model_class) -> sa.ForeignKey:
     pk = get_primary_keys(model_class)
 
     if len(pk) > 1:
@@ -195,12 +201,12 @@ class QueryAdapter(AbstractQueryAdapter):
         q = self.make_query().exists()
         return self.session.query(q).scalar()
 
-    def filter_by(self, **kwargs: typing.Any) -> AbstractQueryAdapter:
+    def filter_by(self: TQueryAdapter, **kwargs: t.Any) -> TQueryAdapter:
         # print(get_query_entities(self._base_query))
         self._base_query = self._base_query.filter_by(**kwargs)
         return self
 
-    def make_query(self):
+    def make_query(self) -> t.Any:
         q = self._base_query
 
         for columns in self._order_by:
@@ -214,7 +220,11 @@ class QueryAdapter(AbstractQueryAdapter):
 
         return q
 
-    def order_by(self, column, *columns) -> AbstractQueryAdapter:
+    def order_by(
+            self: TQueryAdapter,
+            column: str,
+            *columns: tuple[str]
+    ) -> TQueryAdapter:
         args = []
 
         for name in (column, *columns):
@@ -229,38 +239,38 @@ class QueryAdapter(AbstractQueryAdapter):
 
 
 class ResourceManager(AbstractResourceManager):
-    def __init__(self, session):
+    def __init__(self, session) -> None:
         self.session = session
 
-    def commit(self):
+    def commit(self) -> None:
         self.session.commit()
 
     def create(
         self,
-        model_class: typing.Any,
-        data: typing.Union[dict, typing.List[dict]]
-    ) -> typing.Any:
+        model_class: t.Any,
+        data: t.Union[dict, list[dict]]
+    ) -> t.Any:
         if isinstance(data, dict):
             resource = model_class(**data)
             self.session.add(resource)
             return resource
         self.session.bulk_insert_mappings(model_class, data)
 
-    def delete(self, resource: typing.Any) -> None:
+    def delete(self, resource: t.Any) -> None:
         self.session.delete(resource)
 
     def get(
         self,
-        model_class: type,
-        identifier: typing.Union[typing.Any, tuple, dict]
-    ) -> typing.Union[typing.Any, None]:
+        model_class: t.Type[t.Any],
+        identifier: TIdentifier
+    ) -> t.Optional[t.Any]:
         return self.session.query(model_class).get(identifier)
 
     def update(
         self,
-        resource: typing.Any,
+        resource: t.Any,
         attributes: dict
-    ) -> typing.Any:
+    ) -> t.Any:
         self.populate_obj(resource, attributes)
         return resource
 
@@ -283,13 +293,13 @@ class SQLAFactory(AbstractFactory):
     def create_model_field_adapter(self, column):
         return SQLAModelField(column)
 
-    def create_query_adapter(self, base_query: typing.Any) -> QueryAdapter:
+    def create_query_adapter(self, base_query: t.Any) -> TQueryAdapter:
         return QueryAdapter(base_query, session=self.session)
 
-    def create_resource_manager(self):
+    def create_resource_manager(self) -> TResourceManager:
         return ResourceManager(self.session)
 
-    def create_schema(self, model_class):
+    def create_schema(self, model_class) -> t.Type[TSchema]:
         class Meta:
             model = model_class
 
@@ -298,13 +308,13 @@ class SQLAFactory(AbstractFactory):
 
         return type(name, bases, {'Meta': Meta})
 
-    def get_auto_schema_class(self):
+    def get_auto_schema_class(self) -> t.Type[TSchema]:
         return SQLAlchemyAutoSchema
 
     def get_auto_schema_options_class(self):
         return SQLAlchemyAutoSchemaOpts
 
-    def get_schema_class(self):
+    def get_schema_class(self) -> t.Type[TSchema]:
         return SQLAlchemySchema
 
     def get_schema_options_class(self):

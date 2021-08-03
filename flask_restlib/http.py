@@ -8,12 +8,17 @@ import typing as t
 from urllib.parse import urlencode, parse_qs, urlsplit, urlunsplit
 
 from flask import request, Response
+if t.TYPE_CHECKING:
+    from _typeshed.wsgi import StartResponse
+    from _typeshed.wsgi import WSGIApplication
+    from _typeshed.wsgi import WSGIEnvironment
 
 
 __all__ = (
     'url_update_query_string',
     'AbstractHttpCache',
     'HttpCache',
+    'HTTPMethodOverrideMiddleware',
 )
 
 
@@ -85,6 +90,36 @@ class HttpCache(AbstractHttpCache):
 
     def in_cache(self, etag_string: str) -> bool:
         return False
+
+
+class HTTPMethodOverrideMiddleware:
+    """
+    https://flask.palletsprojects.com/en/2.0.x/patterns/methodoverrides/
+    """
+
+    allowed_methods = frozenset([
+        'GET',
+        'HEAD',
+        'POST',
+        'DELETE',
+        'PUT',
+        'PATCH',
+        'OPTIONS'
+    ])
+    bodyless_methods = frozenset(['GET', 'HEAD', 'OPTIONS', 'DELETE'])
+
+    def __init__(self, app: "WSGIApplication") -> None:
+        self.app = app
+
+    def __call__(
+        self, environ: "WSGIEnvironment", start_response: "StartResponse"
+    ) -> t.Iterable[bytes]:
+        method = environ.get('HTTP_X_HTTP_METHOD_OVERRIDE', '').upper()
+        if method in self.allowed_methods:
+            environ['REQUEST_METHOD'] = method
+        if method in self.bodyless_methods:
+            environ['CONTENT_LENGTH'] = '0'
+        return self.app(environ, start_response)
 
 
 THttpCache = t.TypeVar('THttpCache', bound=AbstractHttpCache)

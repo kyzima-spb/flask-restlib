@@ -26,6 +26,12 @@ from flask_restlib.mixins import (
 )
 from flask_restlib.oauth2 import generate_client_id
 from flask_restlib.schemas import RestlibSchema, RestlibSchemaOpts
+from flask_restlib.types import (
+    TIdentifier,
+    TQueryAdapter,
+    TResourceManager,
+    TSchema,
+)
 
 
 __all__ = (
@@ -178,7 +184,7 @@ class MongoQueryExpression(QueryExpression):
 class MongoQueryAdapter(AbstractQueryAdapter):
     __slots__ = ()
 
-    def __init__(self, base_query):
+    def __init__(self, base_query: t.Any) -> None:
         if not isinstance(base_query, BaseQuerySet):
             base_query = base_query.objects
         super().__init__(base_query)
@@ -192,11 +198,11 @@ class MongoQueryAdapter(AbstractQueryAdapter):
     def exists(self) -> bool:
         return bool(self.make_query().first())
 
-    def filter_by(self, **kwargs: t.Any) -> AbstractQueryAdapter:
+    def filter_by(self: TQueryAdapter, **kwargs: t.Any) -> TQueryAdapter:
         self._base_query = self._base_query.filter(**kwargs)
         return self
 
-    def make_query(self):
+    def make_query(self) -> t.Any:
         q = self._base_query
 
         if self._offset is None:
@@ -218,7 +224,7 @@ class MongoQueryAdapter(AbstractQueryAdapter):
 
 
 class MongoResourceManager(AbstractResourceManager):
-    def _prepare_identifier(self, model_class, identifier):
+    def _prepare_identifier(self, model_class, identifier: TIdentifier):
         """
         Converts the original resource identifier to a Mongo-friendly format.
 
@@ -248,13 +254,13 @@ class MongoResourceManager(AbstractResourceManager):
 
         return pk
 
-    def commit(self):
+    def commit(self) -> None:
         pass
 
     def create(
         self,
         model_class: t.Any,
-        data: t.Union[dict, t.List[dict]]
+        data: t.Union[dict, list[dict]]
     ) -> t.Any:
         try:
             if isinstance(data, dict):
@@ -276,7 +282,7 @@ class MongoResourceManager(AbstractResourceManager):
     def get(
         self,
         model_class: t.Type[t.Any],
-        identifier: t.Union[t.Any, tuple, dict]
+        identifier: TIdentifier
     ) -> t.Optional[t.Any]:
         return model_class.objects.with_id(
             self._prepare_identifier(model_class, identifier)
@@ -296,22 +302,22 @@ class MongoEngineFactory(AbstractFactory):
     def create_model_field_adapter(self, column):
         return MongoModelField(column)
 
-    def create_query_adapter(self, base_query: t.Any) -> MongoQueryAdapter:
+    def create_query_adapter(self, base_query: t.Any) -> TQueryAdapter:
         return MongoQueryAdapter(base_query)
 
-    def create_resource_manager(self) -> MongoResourceManager:
+    def create_resource_manager(self) -> TResourceManager:
         return MongoResourceManager()
 
-    def create_schema(self, model_class):
+    def create_schema(self, model_class) -> t.Type[TSchema]:
         raise NotImplementedError
 
-    def get_auto_schema_class(self):
+    def get_auto_schema_class(self) -> t.Type[TSchema]:
         return MongoAutoSchema
 
     def get_auto_schema_options_class(self):
         return MongoAutoSchemaOpts
 
-    def get_schema_class(self):
+    def get_schema_class(self) -> t.Type[TSchema]:
         return MongoSchema
 
     def get_schema_options_class(self):

@@ -31,18 +31,20 @@ class ErrorResponse:
         return dataclasses.asdict(self, dict_factory=factory)
 
 
-Func = t.TypeVar('Func', bound=t.Callable[..., t.Any])
 TFunc = t.TypeVar('TFunc', bound=t.Callable[..., t.Any])
-AnyException = t.TypeVar('AnyException', bound=Exception)
-CatchExceptionCallable = t.Callable[[AnyException, ErrorResponse], None]
+TException = t.TypeVar('TException', bound=Exception)
+CatchExceptionCallable = t.Callable[[TException, ErrorResponse], None]
 
 TIdentifier = t.Union[t.Any, tuple, dict]
 TView = t.Union[t.Callable, View]
-TSchema = t.TypeVar('TSchema', bound=Schema)
 
-TQueryAdapter = t.TypeVar('TQueryAdapter', bound='AbstractQueryAdapter')
+# Uses for argument filter_callback in AbstractQueryAdapter.filter() method.
+TQueryFilter = t.Callable[[t.Any], t.Any]
 
 THttpHeader = tuple[str, str]
 THttpHeaders = list[THttpHeader]
-# ResourceManagerType = t.TypeVar('ResourceManagerType', bound='AbstractResourceManager')
-# AbstractFactoryType = t.TypeVar('AbstractFactoryType', bound='AbstractFactory')
+
+TFactory = t.TypeVar('TFactory', bound='AbstractFactory')
+TQueryAdapter = t.TypeVar('TQueryAdapter', bound='AbstractQueryAdapter')
+TResourceManager = t.TypeVar('TResourceManager', bound='AbstractResourceManager')
+TSchema = t.TypeVar('TSchema', bound=Schema)
