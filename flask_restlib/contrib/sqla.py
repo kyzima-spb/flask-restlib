@@ -5,7 +5,7 @@ import typing
 import sqlalchemy as sa
 from sqlalchemy.orm import Query
 from flask import current_app
-from flask_marshmallow.sqla import SQLAlchemyAutoSchema, SQLAlchemyAutoSchemaOpts
+
 from werkzeug.local import LocalProxy
 
 from flask_restlib.core import (
@@ -27,11 +27,19 @@ from flask_restlib.oauth2 import generate_client_id
 from flask_restlib.utils import strip_sorting_flag
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.orm import relationship
+from flask_marshmallow.sqla import (
+    SQLAlchemyAutoSchema as _SQLAlchemyAutoSchema,
+    SQLAlchemyAutoSchemaOpts as _SQLAlchemyAutoSchemaOpts,
+    SQLAlchemySchema as _SQLAlchemySchema,
+    SQLAlchemySchemaOpts as _SQLAlchemySchemaOpts,
+)
 from sqlalchemy_utils.types import UUIDType
 from sqlalchemy_utils.functions import (
     get_declarative_base,
     get_primary_keys
 )
+
+from flask_restlib.schemas import RestlibMixin
 
 
 __all__ = (
@@ -76,6 +84,8 @@ def create_user_reference_mixin(user_model):
     return _UserReferenceMixin
 
 
+# todo: OAuth 2.0
+
 class OAuth2ClientMixin(ClientMixin):
     __tablename__ = 'oauth2_client'
 
@@ -112,20 +122,23 @@ class OAuth2AuthorizationCodeMixin(_OAuth2AuthorizationCodeMixin, AuthorizationC
     id = sa.Column(UUIDType(binary=False), primary_key=True)
 
 
-class AutoSchemaOpts(SQLAlchemyAutoSchemaOpts):
-    def __init__(self, meta, ordered=False):
-        # if not hasattr(meta, 'sqla_session'):
-        #     meta.sqla_session = models.db.session
-
-        meta.dump_only = {
-            'id', 'created_at', 'updated_at', *getattr(meta, 'dump_only', ())
-        }
-
-        super().__init__(meta, ordered=ordered)
+# todo: Marshmallow
 
 
-class AutoSchema(SQLAlchemyAutoSchema):
-    OPTIONS_CLASS = AutoSchemaOpts
+class SQLAlchemySchemaOpts(RestlibMixin.Opts, _SQLAlchemySchemaOpts):
+    pass
+
+
+class SQLAlchemyAutoSchemaOpts(RestlibMixin.Opts, _SQLAlchemyAutoSchemaOpts):
+    pass
+
+
+class SQLAlchemySchema(_SQLAlchemySchema):
+    OPTIONS_CLASS = SQLAlchemySchemaOpts
+
+
+class SQLAlchemyAutoSchema(_SQLAlchemyAutoSchema):
+    OPTIONS_CLASS = SQLAlchemyAutoSchemaOpts
 
 
 class SQLAModelField:
@@ -281,15 +294,21 @@ class SQLAFactory(AbstractFactory):
             model = model_class
 
         name = '%sSchema' % model_class.__name__
-        bases = (self.get_schema_class(),)
+        bases = (self.get_auto_schema_class(),)
 
         return type(name, bases, {'Meta': Meta})
 
+    def get_auto_schema_class(self):
+        return SQLAlchemyAutoSchema
+
+    def get_auto_schema_options_class(self):
+        return SQLAlchemyAutoSchemaOpts
+
     def get_schema_class(self):
-        return AutoSchema
+        return SQLAlchemySchema
 
     def get_schema_options_class(self):
-        return AutoSchemaOpts
+        return SQLAlchemySchemaOpts
 
     def create_client_model(self, user_model):
         return type(

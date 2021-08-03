@@ -8,7 +8,7 @@ try:
     from flask_mongoengine import Document
 except ImportError:
     from mongoengine import Document
-from marshmallow import Schema as _Schema, SchemaOpts as _SchemaOpts
+import marshmallow as ma
 import mongoengine as me
 from mongoengine.errors import OperationError
 from mongoengine.queryset.base import BaseQuerySet
@@ -25,12 +25,16 @@ from flask_restlib.mixins import (
     TokenMixin
 )
 from flask_restlib.oauth2 import generate_client_id
+from flask_restlib.schemas import RestlibSchema, RestlibSchemaOpts
 
 
 __all__ = (
     'AbstractOAuth2Client', 'AbstractOAuth2Token', 'AbstractOAuth2AuthorizationCode',
     'MongoQueryAdapter', 'MongoResourceManager', 'MongoEngineFactory',
 )
+
+
+# todo: OAuth 2.0
 
 
 class AbstractOAuth2Client(ClientMixin, Document):
@@ -113,17 +117,23 @@ class AbstractOAuth2AuthorizationCode(AuthorizationCodeMixin, Document):
     }
 
 
-class SchemaOpts(_SchemaOpts):
-    def __init__(self, meta, ordered=False):
-        meta.dump_only = {
-            'id', 'created_at', 'updated_at', *getattr(meta, 'dump_only', ())
-        }
-
-        super().__init__(meta, ordered=ordered)
+# todo: Marshmallow
 
 
-class Schema(_Schema):
-    OPTIONS_CLASS = SchemaOpts
+class MongoSchemaOpts(RestlibSchemaOpts):
+    pass
+
+
+class MongoAutoSchemaOpts(RestlibSchemaOpts):
+    pass
+
+
+class MongoSchema(RestlibSchema):
+    OPTIONS_CLASS = MongoSchemaOpts
+
+
+class MongoAutoSchema(RestlibSchema):
+    OPTIONS_CLASS = MongoAutoSchemaOpts
 
 
 class MongoModelField:
@@ -293,13 +303,19 @@ class MongoEngineFactory(AbstractFactory):
         return MongoResourceManager()
 
     def create_schema(self, model_class):
-        pass
+        raise NotImplementedError
+
+    def get_auto_schema_class(self):
+        return MongoAutoSchema
+
+    def get_auto_schema_options_class(self):
+        return MongoAutoSchemaOpts
 
     def get_schema_class(self):
-        return Schema
+        return MongoSchema
 
     def get_schema_options_class(self):
-        return SchemaOpts
+        return MongoSchemaOpts
 
     def create_client_model(self, user_model):
         return type(

@@ -357,6 +357,17 @@ class AbstractFactory(metaclass=ABCMeta):
         """
 
     @abstractmethod
+    def get_auto_schema_class(self):
+        """
+        Returns a reference to the base class of the schema
+        used in serialization and validation.
+        """
+
+    @abstractmethod
+    def get_auto_schema_options_class(self):
+        """Returns a reference to the base auto schema options class."""
+
+    @abstractmethod
     def get_schema_class(self):
         """
         Returns a reference to the base class of the schema
@@ -420,6 +431,8 @@ class RestLib:
         'resource_protector',
         'authorization_server',
         'ma',
+        'Schema',
+        'AutoSchema',
     )
 
     def __init__(
@@ -439,6 +452,9 @@ class RestLib:
         self.pagination_instance = pagination_instance
         self.http_cache_instance = http_cache_instance
         self.router = Router('api')
+
+        self.Schema = factory.get_schema_class()
+        self.AutoSchema = factory.get_auto_schema_class()
 
         self.resource_protector = ResourceProtector()
         # only bearer token is supported currently
@@ -556,6 +572,13 @@ class RestLib:
         app.config.setdefault('RESTLIB_REMEMBER_ME', False)
         app.config.setdefault('RESTLIB_HTTP_CACHE_DISABLE', False)
         app.config.setdefault('RESTLIB_CONCURRENCY_CONTROL_DISABLE', False)
+
+        app.config.setdefault('RESTLIB_ID_FIELD', 'id')
+        app.config.setdefault('RESTLIB_CREATED_FIELD', 'created')
+        app.config.setdefault('RESTLIB_UPDATED_FIELD', 'updated')
+        app.config.setdefault('RESTLIB_DUMP_ONLY', ())
+        app.config.setdefault('RESTLIB_LOAD_ONLY', ())
+        app.config.setdefault('RESTLIB_DEFAULT_SCOPE', '')
 
         app.extensions['restlib'] = self
 

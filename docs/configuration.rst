@@ -33,4 +33,18 @@ Option                                       Description
                                              Defaults to ``False``.
 `RESTLIB_CONCURRENCY_CONTROL_DISABLE`        Disable concurrency control for unsafe operations.
                                              Defaults to ``False``.
+`RESTLIB_ID_FIELD`                           Name of the field used to uniquely identify resource items
+                                             within the persistent storage.
+                                             Defaults to ``'id'``.
+`RESTLIB_CREATED_FIELD`                      Name for the field used to record a resource creation date.
+                                             Defaults to ``'created'``.
+`RESTLIB_UPDATED_FIELD`                      Name of the field used to record a resource last update date.
+                                             Defaults to ``'updated'``.
+`RESTLIB_DUMP_ONLY`                          Fields to skip during serialization (write-only fields).
+                                             Defaults to ``()``.
+`RESTLIB_LOAD_ONLY`                          Fields to skip during deserialization (read-only fields).
+                                             Defaults to ``()``.
+`RESTLIB_DEFAULT_SCOPE`                      Default scopes list.
+                                             Used if no scope is specified for the client.
+                                             Defaults to ``''``.
 =========================================    ================================================================
