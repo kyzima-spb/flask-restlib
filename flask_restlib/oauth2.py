@@ -61,9 +61,15 @@ def generate_client_secret(length: int) -> str:
 
 
 def validate_client_id(client_id: str) -> bool:
-    return not (
-        not client_id or authorization_server.query_client(client_id) is not None
-    )
+    """
+    Returns true if the specified client ID is unique, false otherwise.
+
+    Arguments:
+        client_id (str): client ID.
+    """
+    if not client_id:
+        return False
+    return authorization_server.query_client(client_id) is None
 
 
 class AuthorizationCodeGrant(grants.AuthorizationCodeGrant):
