@@ -347,7 +347,7 @@ class ClientMixin(_ClientMixin):
 
         .. _`Section 3.3`: https://tools.ietf.org/html/rfc7591#section-3.3
         """
-        return self.client_metadata.get('scope', '')
+        return self.client_metadata.get('scope') or current_app.config['RESTLIB_DEFAULT_SCOPE']
 
     @property
     def contacts(self) -> list[str]:
