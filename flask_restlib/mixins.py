@@ -221,6 +221,9 @@ class AuthorizationCodeMixin(_AuthorizationCodeMixin):
 
 
 class ClientMixin(_ClientMixin):
+    CLIENT_ID_LENGTH = 48
+    CLIENT_SECRET_LENGTH = 120
+
     @property
     def client_info(self) -> dict[str, t.Any]:
         """
@@ -307,6 +310,10 @@ class ClientMixin(_ClientMixin):
         .. _`Section 2.2`: https://tools.ietf.org/html/rfc7591#section-2.2
         """
         return self.client_metadata.get('client_name')
+
+    @property
+    def client_description(self) -> str:
+        return self.client_metadata.get('client_description')
 
     @property
     def client_uri(self) -> t.Optional[str]:

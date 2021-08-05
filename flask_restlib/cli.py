@@ -1,22 +1,19 @@
 from __future__ import annotations
-from functools import reduce
-from itertools import chain
-import operator
 import typing as t
 
 from authlib.oauth2.rfc6749.grants import BaseGrant
 import click
-from flask.cli import AppGroup
+from flask.cli import AppGroup, with_appcontext
 from PyInquirer import prompt
 
 from flask_restlib import validators
 from flask_restlib.oauth2 import (
     authorization_server,
-    generate_client_id,
-    generate_client_secret,
-    validate_client_id as _validate_client_id
+    save_client,
+    get_authentication_methods,
+    get_response_types,
+    validate_client_id
 )
-from flask_restlib.utils import resource_manager
 from flask_restlib.types import TFunc
 
 
@@ -32,9 +29,7 @@ api_cli = AppGroup('api', help='Flask-Restlib CLI')
 
 def fill_response_types(answer: dict) -> None:
     """Adds authorization server response types to the current answers."""
-    answer['response_types'] = list(reduce(operator.or_, (
-        getattr(grant, 'RESPONSE_TYPES', set()) for grant in answer['grants']
-    )))
+    answer['response_types'] = get_response_types(answer['grants'])
 
 
 def fill_grant_types(answer: dict) -> None:
@@ -47,12 +42,9 @@ def get_auth_method_choices(grants: list[BaseGrant]) -> list[dict]:
     Returns a list of client authentication methods
     in a format that an input element can understand.
     """
-    methods = chain.from_iterable(
-        grant.TOKEN_ENDPOINT_AUTH_METHODS for grant in grants
-    )
     return [
         {'name': CLIENT_AUTHENTICATION[i], 'value': i}
-        for i in set(methods) if i != 'none'
+        for i in get_authentication_methods(grants)
     ]
 
 
@@ -82,12 +74,6 @@ def make_action_step(func: TFunc) -> dict:
         'message': '',
         'when': wrapper,
     }
-
-
-def validate_client_id(client_id: str) -> t.Union[bool, str]:
-    if client_id and not _validate_client_id(client_id):
-        return 'Client ID already exists.'
-    return True
 
 
 def validate_url(value: str, multiline: bool = False, required: bool = False) -> t.Union[bool, str]:
@@ -129,22 +115,19 @@ def create_client(user: t.Any) -> None:
             },
             {
                 'type': 'input',
-                'name': 'id',
+                'name': 'client_id',
                 'message': 'Enter client ID',
-                'validate': validate_client_id,
-                'filter': lambda client_id: client_id or generate_client_id(48),
+                'validate': lambda answer: (
+                    not answer or validate_client_id(answer) or 'Client ID already exists.'
+                ),
             },
             {
                 'type': 'input',
                 'name': 'client_secret',
                 'message': 'Enter client secret',
                 'when': lambda answer: not answer['is_public'],
-                'filter': lambda client_secret: client_secret or generate_client_secret(120),
             },
-        ],
-        {
-            'client_secret': '',
-        }
+        ]
     )
     metadata: dict = prompt(
         [
@@ -156,7 +139,7 @@ def create_client(user: t.Any) -> None:
             },
             {
                 'type': 'input',
-                'name': 'description',
+                'name': 'client_description',
                 'message': 'Enter client description',
             },
             {
@@ -200,11 +183,7 @@ def create_client(user: t.Any) -> None:
                 'default': False,
             },
             make_action_step(lambda answer: answer.pop('grants')),
-        ],
-        {
-            'token_endpoint_auth_method': 'none',
-            'redirect_uris': [],
-        }
+        ]
     )
 
     if metadata.pop('additional'):
@@ -252,14 +231,9 @@ def create_client(user: t.Any) -> None:
                 'validate': validate_url,
             },
         ])
-        metadata.update({k:v for k, v in additional_metadata.items() if v})
+        metadata.update({k: v for k, v in additional_metadata.items() if v})
 
-    data.pop('is_public')
-
-    with resource_manager() as rm:
-        client = rm.create(authorization_server.OAuth2Client, data)
-        client.client_metadata = metadata
-        client.user = user
+    client = save_client(user=user, client_metadata=metadata, **data)
 
     click.secho(
         '\nYou have successfully created a new OAuth 2.0 client.',

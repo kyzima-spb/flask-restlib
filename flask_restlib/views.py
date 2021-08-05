@@ -15,13 +15,16 @@ from werkzeug.exceptions import (
     PreconditionRequired,
     PreconditionFailed
 )
+from webargs.flaskparser import parser
 from werkzeug.http import generate_etag
 
 from flask_restlib import current_restlib
 from flask_restlib import mixins
 from flask_restlib.core import AbstractFactory, AbstractResourceManager
 from flask_restlib.http import THttpCache
-from flask_restlib.permissions import Permission
+from flask_restlib.oauth2 import authorization_server, save_client
+from flask_restlib.permissions import Permission, TokenHasScope
+from flask_restlib.schemas import ClientSchema
 from flask_restlib.types import TIdentifier, TSchema
 
 
@@ -316,3 +319,17 @@ class RetrieveView(mixins.RetrieveViewMixin, ApiView):
 
 class UpdateView(mixins.UpdateViewMixin, ApiView):
     pass
+
+
+class ClientView(CreateView):
+    schema_class = ClientSchema
+    permissions = [TokenHasScope('oauth')]
+
+    def get_model_class(self):
+        return authorization_server.OAuth2Client
+
+    def create(self) -> ResponseReturnValue:
+        schema = self.create_schema()  # type: ignore
+        data = parser.parse(schema, location='json_or_form')
+        client = save_client(**data)
+        return schema.dump(client), 201, self.get_creation_headers(data)
