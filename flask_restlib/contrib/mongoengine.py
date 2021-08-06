@@ -288,6 +288,9 @@ class MongoResourceManager(AbstractResourceManager):
             self._prepare_identifier(model_class, identifier)
         )
 
+    def rollback(self) -> None:
+        pass
+
     def update(
         self,
         resource: t.Any,

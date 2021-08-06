@@ -254,6 +254,8 @@ class AbstractResourceManager(metaclass=ABCMeta):
     ) -> None:
         if err is None:
             self.commit()
+        else:
+            self.rollback()
 
     @abstractmethod
     def commit(self) -> None:
@@ -310,6 +312,10 @@ class AbstractResourceManager(metaclass=ABCMeta):
         """
         for attr, value in attributes.items():
             setattr(resource, attr, value)
+
+    @abstractmethod
+    def rollback(self) -> None:
+        """Rollback the current transaction in progress."""
 
     @abstractmethod
     def update(

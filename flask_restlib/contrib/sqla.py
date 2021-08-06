@@ -263,6 +263,9 @@ class ResourceManager(AbstractResourceManager):
     ) -> t.Optional[t.Any]:
         return self.session.query(model_class).get(identifier)
 
+    def rollback(self) -> None:
+        self.session.rollback()
+
     def update(
         self,
         resource: t.Any,
