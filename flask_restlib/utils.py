@@ -3,38 +3,12 @@ from importlib import import_module
 import re
 import typing as t
 
-from flask import current_app
-from werkzeug.local import LocalProxy
-
 
 __all__ = (
-    'current_restlib', 'F', 'query_adapter', 'resource_manager',
     'camel_to_list', 'camel_to_snake', 'snake_to_camel',
     'strip_sorting_flag',
     'import_string',
 )
-
-
-current_restlib: "Restlib" = LocalProxy(lambda: current_app.extensions['restlib'])  # type: ignore
-
-
-def F(column):
-    """
-    An adapter for a model attribute.
-
-    Arguments:
-        column: native attribute of the model."""
-    return current_restlib.factory.create_model_field_adapter(column)
-
-
-def query_adapter(base_query):
-    """Creates and returns a queryset for retrieving resources from persistent storage."""
-    return current_restlib.factory.create_query_adapter(base_query)
-
-
-def resource_manager():
-    """Creates and returns a resource manager instance."""
-    return current_restlib.factory.create_resource_manager()
 
 
 def camel_to_list(s: str, lower: bool = False) -> list[str]:

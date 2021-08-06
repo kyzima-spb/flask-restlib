@@ -13,22 +13,22 @@ from marshmallow import Schema
 from webargs.flaskparser import parser
 from werkzeug.exceptions import HTTPException
 
-from flask_restlib import exceptions
-from flask_restlib.cli import api_cli
-from flask_restlib.http import THttpCache, HttpCache, HTTPMethodOverrideMiddleware
-from flask_restlib.mixins import (
+from . import exceptions
+from .cli import api_cli
+from .http import THttpCache, HttpCache, HTTPMethodOverrideMiddleware
+from .mixins import (
     AuthorizationCodeType,
     ClientType,
     TokenType,
     UserType
 )
-from flask_restlib.oauth2 import (
+from .oauth2 import (
     AuthorizationServer,
     BearerTokenValidator
 )
-from flask_restlib.pagination import LimitOffsetPagination, TPagination
-from flask_restlib.routing import Router
-from flask_restlib.types import (
+from .pagination import LimitOffsetPagination, TPagination
+from .routing import Router
+from .types import (
     ErrorResponse,
     CatchExceptionCallable,
     TFactory,
@@ -254,6 +254,8 @@ class AbstractResourceManager(metaclass=ABCMeta):
     ) -> None:
         if err is None:
             self.commit()
+        else:
+            self.rollback()
 
     @abstractmethod
     def commit(self) -> None:
@@ -310,6 +312,10 @@ class AbstractResourceManager(metaclass=ABCMeta):
         """
         for attr, value in attributes.items():
             setattr(resource, attr, value)
+
+    @abstractmethod
+    def rollback(self) -> None:
+        """Rollback the current transaction in progress."""
 
     @abstractmethod
     def update(
@@ -625,8 +631,3 @@ class RestLib:
             self.catch_exception(exc_type, status_code, callback)
             return callback
         return decorator
-
-
-# TQueryAdapter = t.TypeVar('TQueryAdapter', bound=AbstractQueryAdapter)
-# TResourceManager = t.TypeVar('TResourceManager', bound=AbstractResourceManager)
-# TFactory = t.TypeVar('TFactory', bound=AbstractFactory)

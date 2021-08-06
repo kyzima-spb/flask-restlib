@@ -22,30 +22,26 @@ from flask import (
 from flask_login import (
     LoginManager, current_user, login_required, login_user, logout_user
 )
-from flask_restlib.forms import LoginForm
-from flask_restlib.mixins import (
+from flask_useful.views import MethodView, FormView
+from flask_useful.utils import flash
+from flask_wtf.csrf import validate_csrf
+from wtforms.validators import ValidationError
+
+from .exceptions import LogicalError
+from .forms import LoginForm
+from .globals import (
+    authorization_server,
+    F,
+    query_adapter,
+    resource_manager
+)
+from .mixins import (
     AuthorizationCodeType,
     ClientType,
     TokenType,
     UserType
 )
-from flask_restlib.utils import (
-    F,
-    current_restlib,
-    query_adapter,
-    resource_manager,
-    camel_to_list
-)
-from flask_useful.views import MethodView, FormView
-from flask_useful.utils import flash
-from flask_wtf.csrf import validate_csrf
-from werkzeug.local import LocalProxy
-from wtforms.validators import ValidationError
-
-
-authorization_server: AuthorizationServer = LocalProxy(
-    lambda: current_restlib.authorization_server
-)
+from .utils import camel_to_list
 
 
 def generate_client_id(length: int) -> str:
@@ -60,10 +56,69 @@ def generate_client_secret(length: int) -> str:
     return secrets.token_hex(length // 2)
 
 
+def get_authentication_methods(grants: list[grants.BaseGrant]) -> set[str]:
+    """Returns a list of authentication methods for the given grants."""
+    return {
+        i for g in grants for i in g.TOKEN_ENDPOINT_AUTH_METHODS if i != 'none'
+    }
+
+
+def get_response_types(grants: list[grants.BaseGrant]) -> list[str]:
+    """Returns a list of response types for the given grants."""
+    return list({t for g in grants for t in getattr(g, 'RESPONSE_TYPES', ())})
+
+
+def save_client(
+    is_public: bool,
+    client_metadata: dict,
+    client_id: str = None,
+    client_secret: str = None,
+    user: UserType = None
+) -> ClientType:
+    """Saves OAuth client to persistent storage."""
+    user = user or current_user
+
+    if not user:
+        raise LogicalError('Failed to get the current user.')
+
+    if not client_id:
+        n = authorization_server.OAuth2Client.CLIENT_ID_LENGTH
+        client_id = generate_client_id(n)
+
+    if not is_public and not client_secret:
+        n = authorization_server.OAuth2Client.CLIENT_SECRET_LENGTH
+        client_secret = generate_client_secret(n)
+
+    if is_public:
+        if client_secret:
+            raise LogicalError('For public clients it is not possible to set the client_secret.')
+
+        if client_metadata.get('token_endpoint_auth_method'):
+            raise LogicalError('Public clients do not require authentication.')
+
+        client_metadata['token_endpoint_auth_method'] = 'none'
+
+    with resource_manager() as rm:
+        client = rm.create(authorization_server.OAuth2Client, {
+            'id': client_id,
+            'client_secret': client_secret,
+            'client_metadata': client_metadata,
+            'user': user,
+        })
+
+    return client
+
+
 def validate_client_id(client_id: str) -> bool:
-    return not (
-        not client_id or authorization_server.query_client(client_id) is not None
-    )
+    """
+    Returns true if the specified client ID is unique, false otherwise.
+
+    Arguments:
+        client_id (str): client ID.
+    """
+    if not client_id:
+        return False
+    return authorization_server.query_client(client_id) is None
 
 
 class AuthorizationCodeGrant(grants.AuthorizationCodeGrant):
@@ -333,7 +388,7 @@ class AuthorizationServer(_AuthorizationServer):
 
         super().__init__(save_token=save_token, query_client=query_client)
 
-        self._registered_grants = []
+        self._registered_grants: list[grants.BaseGrant] = []
 
         self.OAuth2User = user_model
         self.OAuth2Client = client_model
@@ -445,7 +500,7 @@ class AuthorizationServer(_AuthorizationServer):
                 flag = bool(auth_methods & {'none'})
 
             if not flag and only_confidential:
-                flag = (auth_methods ^ {'none'})
+                flag = bool(auth_methods ^ {'none'})
 
             if flag:
                 grants[' '.join(camel_to_list(grant.__name__))] = grant

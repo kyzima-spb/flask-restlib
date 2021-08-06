@@ -5,9 +5,10 @@ from authlib.oauth2 import OAuth2Error
 from authlib.oauth2.rfc6749 import MissingAuthorizationError
 from authlib.integrations.flask_oauth2.resource_protector import ResourceProtector
 from flask_login import current_user
-from flask_restlib import current_restlib
-from flask_restlib.exceptions import AuthenticationError, AuthorizationError
-from flask_restlib.types import TView
+
+from .globals import current_restlib
+from .exceptions import AuthenticationError, AuthorizationError
+from .types import TView
 
 
 class Permission:

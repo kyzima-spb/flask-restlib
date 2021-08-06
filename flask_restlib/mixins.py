@@ -10,16 +10,17 @@ from authlib.oauth2.rfc6749 import (
 )
 from authlib.oauth2.rfc6749.util import scope_to_list, list_to_scope
 from flask import request, abort, current_app
+from flask_login import UserMixin as _UserMixin
 from flask.typing import ResponseReturnValue, HeadersValue
 from webargs import fields
 from webargs import validate as validators
 from webargs.flaskparser import parser
 from werkzeug.datastructures import Headers
 
-from flask_login import UserMixin as _UserMixin
-from flask_restlib.pagination import TPagination
-from flask_restlib.utils import strip_sorting_flag, current_restlib
-from flask_restlib.types import (
+from .globals import current_restlib
+from .pagination import TPagination
+from .utils import strip_sorting_flag
+from .types import (
     TIdentifier,
     TQueryAdapter,
     THttpHeaders
@@ -221,6 +222,9 @@ class AuthorizationCodeMixin(_AuthorizationCodeMixin):
 
 
 class ClientMixin(_ClientMixin):
+    CLIENT_ID_LENGTH = 48
+    CLIENT_SECRET_LENGTH = 120
+
     @property
     def client_info(self) -> dict[str, t.Any]:
         """
@@ -309,6 +313,10 @@ class ClientMixin(_ClientMixin):
         return self.client_metadata.get('client_name')
 
     @property
+    def client_description(self) -> str:
+        return self.client_metadata.get('client_description')
+
+    @property
     def client_uri(self) -> t.Optional[str]:
         """
         URL string of a web page providing information about the client.
@@ -347,7 +355,7 @@ class ClientMixin(_ClientMixin):
 
         .. _`Section 3.3`: https://tools.ietf.org/html/rfc7591#section-3.3
         """
-        return self.client_metadata.get('scope', '')
+        return self.client_metadata.get('scope') or current_app.config['RESTLIB_DEFAULT_SCOPE']
 
     @property
     def contacts(self) -> list[str]:

@@ -4,7 +4,7 @@ from marshmallow.validate import (
     NoneOf, OneOf, ContainsOnly, ContainsNoneOf
 )
 
-from flask_restlib.utils import current_restlib, query_adapter
+from .globals import current_restlib, query_adapter
 
 
 __all__ = (
