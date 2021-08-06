@@ -6,12 +6,12 @@ from todo.extensions import rest
 
 class Tasks(views.ListView, views.CreateView):
     model_class = models.Task
-    # schema_class = schemes.EducationSchema
+    # schema_class = schemes.TaskSchema
 
 
 class TasksItem(views.RetrieveView, views.UpdateView, views.DestroyView):
     model_class = models.Task
-    # schema_class = schemes.EducationSchema
+    # schema_class = schemes.TaskSchema
 
 
 with rest.router.collection('tasks') as c:

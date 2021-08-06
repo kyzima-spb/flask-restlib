@@ -1,6 +1,8 @@
 from flask import Flask
 
-from todo.extensions import rest
+from . import views
+from .extensions import rest
+from .models import db
 
 
 def create_app(test_config=None):
@@ -15,6 +17,7 @@ def create_app(test_config=None):
         # load the test config if passed in
         app.config.from_mapping(test_config)
 
+    db.init_app(app)
     rest.init_app(app)
 
     return app
