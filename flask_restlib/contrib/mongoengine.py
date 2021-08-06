@@ -13,20 +13,20 @@ import mongoengine as me
 from mongoengine.errors import OperationError
 from mongoengine.queryset.base import BaseQuerySet
 
-from flask_restlib.core import (
+from ..core import (
     AbstractQueryAdapter,
     AbstractResourceManager,
     AbstractFactory,
     QueryExpression
 )
-from flask_restlib.mixins import (
+from ..mixins import (
     AuthorizationCodeMixin,
     ClientMixin,
     TokenMixin
 )
-from flask_restlib.oauth2 import generate_client_id
-from flask_restlib.schemas import RestlibSchema, RestlibSchemaOpts
-from flask_restlib.types import (
+from ..oauth2 import generate_client_id
+from ..schemas import RestlibSchema, RestlibSchemaOpts
+from ..types import (
     TIdentifier,
     TQueryAdapter,
     TResourceManager,

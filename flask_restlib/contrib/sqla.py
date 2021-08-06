@@ -2,50 +2,47 @@ from __future__ import annotations
 from functools import lru_cache, partial
 import typing as t
 
-import sqlalchemy as sa
-from sqlalchemy.orm import Query
-from flask import current_app
-
-from werkzeug.local import LocalProxy
-
-from flask_restlib.core import (
-    AbstractQueryAdapter,
-    AbstractResourceManager,
-    AbstractFactory,
-    QueryExpression,
-)
 from authlib.integrations.sqla_oauth2 import (
     OAuth2TokenMixin as _OAuth2TokenMixin,
     OAuth2AuthorizationCodeMixin as _OAuth2AuthorizationCodeMixin
 )
-from flask_restlib.mixins import (
-    AuthorizationCodeMixin,
-    ClientMixin,
-    TokenMixin
-)
-from flask_restlib.oauth2 import generate_client_id
-from flask_restlib.utils import strip_sorting_flag
-from sqlalchemy.ext.declarative import declared_attr
-from sqlalchemy.orm import relationship
+from flask import current_app
 from flask_marshmallow.sqla import (
     SQLAlchemyAutoSchema as _SQLAlchemyAutoSchema,
     SQLAlchemyAutoSchemaOpts as _SQLAlchemyAutoSchemaOpts,
     SQLAlchemySchema as _SQLAlchemySchema,
     SQLAlchemySchemaOpts as _SQLAlchemySchemaOpts,
 )
-from sqlalchemy_utils.types import UUIDType
+import sqlalchemy as sa
+from sqlalchemy.ext.declarative import declared_attr
+from sqlalchemy.orm import Query, relationship
 from sqlalchemy_utils.functions import (
     get_declarative_base,
     get_primary_keys
 )
+from sqlalchemy_utils.types import UUIDType
+from werkzeug.local import LocalProxy
 
-from flask_restlib.schemas import RestlibMixin
-from flask_restlib.types import (
+from ..core import (
+    AbstractQueryAdapter,
+    AbstractResourceManager,
+    AbstractFactory,
+    QueryExpression,
+)
+from ..mixins import (
+    AuthorizationCodeMixin,
+    ClientMixin,
+    TokenMixin
+)
+from ..oauth2 import generate_client_id
+from ..schemas import RestlibMixin
+from ..types import (
     TIdentifier,
     TQueryAdapter,
     TResourceManager,
     TSchema,
 )
+from ..utils import strip_sorting_flag
 
 
 __all__ = (
