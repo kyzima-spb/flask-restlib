@@ -6,15 +6,15 @@ import click
 from flask.cli import AppGroup, with_appcontext
 from PyInquirer import prompt
 
-from flask_restlib import validators
-from flask_restlib.oauth2 import (
-    authorization_server,
+from . import validators
+from .globals import authorization_server
+from .oauth2 import (
     save_client,
     get_authentication_methods,
     get_response_types,
     validate_client_id
 )
-from flask_restlib.types import TFunc
+from .types import TFunc
 
 
 CLIENT_AUTHENTICATION = {

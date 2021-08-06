@@ -22,31 +22,26 @@ from flask import (
 from flask_login import (
     LoginManager, current_user, login_required, login_user, logout_user
 )
-from flask_restlib.exceptions import LogicalError
-from flask_restlib.forms import LoginForm
-from flask_restlib.mixins import (
+from flask_useful.views import MethodView, FormView
+from flask_useful.utils import flash
+from flask_wtf.csrf import validate_csrf
+from wtforms.validators import ValidationError
+
+from .exceptions import LogicalError
+from .forms import LoginForm
+from .globals import (
+    authorization_server,
+    F,
+    query_adapter,
+    resource_manager
+)
+from .mixins import (
     AuthorizationCodeType,
     ClientType,
     TokenType,
     UserType
 )
-from flask_restlib.utils import (
-    F,
-    current_restlib,
-    query_adapter,
-    resource_manager,
-    camel_to_list
-)
-from flask_useful.views import MethodView, FormView
-from flask_useful.utils import flash
-from flask_wtf.csrf import validate_csrf
-from werkzeug.local import LocalProxy
-from wtforms.validators import ValidationError
-
-
-authorization_server: AuthorizationServer = LocalProxy(
-    lambda: current_restlib.authorization_server
-)
+from .utils import camel_to_list
 
 
 def generate_client_id(length: int) -> str:

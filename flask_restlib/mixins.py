@@ -10,16 +10,17 @@ from authlib.oauth2.rfc6749 import (
 )
 from authlib.oauth2.rfc6749.util import scope_to_list, list_to_scope
 from flask import request, abort, current_app
+from flask_login import UserMixin as _UserMixin
 from flask.typing import ResponseReturnValue, HeadersValue
 from webargs import fields
 from webargs import validate as validators
 from webargs.flaskparser import parser
 from werkzeug.datastructures import Headers
 
-from flask_login import UserMixin as _UserMixin
-from flask_restlib.pagination import TPagination
-from flask_restlib.utils import strip_sorting_flag, current_restlib
-from flask_restlib.types import (
+from .globals import current_restlib
+from .pagination import TPagination
+from .utils import strip_sorting_flag
+from .types import (
     TIdentifier,
     TQueryAdapter,
     THttpHeaders

@@ -6,8 +6,8 @@ import marshmallow as ma
 from marshmallow import fields, validates
 from marshmallow.types import StrSequenceOrSet
 
-from flask_restlib import validators
-from flask_restlib.oauth2 import (
+from . import validators
+from .oauth2 import (
     authorization_server,
     get_authentication_methods,
     get_response_types

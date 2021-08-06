@@ -18,14 +18,14 @@ from werkzeug.exceptions import (
 from webargs.flaskparser import parser
 from werkzeug.http import generate_etag
 
-from flask_restlib import current_restlib
-from flask_restlib import mixins
-from flask_restlib.core import AbstractFactory, AbstractResourceManager
-from flask_restlib.http import THttpCache
-from flask_restlib.oauth2 import authorization_server, save_client
-from flask_restlib.permissions import Permission, TokenHasScope
-from flask_restlib.schemas import ClientSchema
-from flask_restlib.types import TIdentifier, TSchema
+from . import mixins
+from .core import AbstractFactory, AbstractResourceManager
+from .globals import current_restlib, authorization_server
+from .http import THttpCache
+from .oauth2 import save_client
+from .permissions import Permission, TokenHasScope
+from .schemas import ClientSchema
+from .types import TIdentifier, TSchema
 
 
 __all__ = (

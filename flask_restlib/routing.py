@@ -9,8 +9,8 @@ import typing as t
 from flask.blueprints import Blueprint, BlueprintSetupState
 from flask.views import View
 
-from flask_restlib.types import TView
-from flask_restlib.utils import camel_to_snake
+from .types import TView
+from .utils import camel_to_snake
 
 
 class Collection:

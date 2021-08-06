@@ -4,15 +4,16 @@ from copy import copy
 import typing as t
 
 from flask import current_app
-from flask_restlib.http import url_update_query_string
-from flask_restlib.types import (
+from webargs import fields
+from webargs import validate as validators
+from webargs.flaskparser import parser
+
+from .http import url_update_query_string
+from .types import (
     THttpHeader,
     THttpHeaders,
     TQueryAdapter,
 )
-from webargs import fields
-from webargs import validate as validators
-from webargs.flaskparser import parser
 
 
 __all__ = (

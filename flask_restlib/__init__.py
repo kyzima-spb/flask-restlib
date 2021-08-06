@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 from authlib.integrations.flask_oauth2 import current_token
-from flask_restlib.core import RestLib
-from flask_restlib.oauth2 import authorization_server
-from flask_restlib.utils import (
+
+from .core import RestLib
+from .globals import (
     current_restlib,
+    authorization_server,
     F,
     query_adapter,
     resource_manager
