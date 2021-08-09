@@ -6,7 +6,7 @@ from .core import RestLib
 from .globals import (
     current_restlib,
     authorization_server,
-    F,
+    Q,
     query_adapter,
     resource_manager
 )

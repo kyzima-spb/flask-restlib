@@ -31,7 +31,7 @@ from .exceptions import LogicalError
 from .forms import LoginForm
 from .globals import (
     authorization_server,
-    F,
+    Q,
     query_adapter,
     resource_manager
 )
@@ -237,7 +237,7 @@ class RevokeToken(RevocationEndpoint):
         current_app.logger.debug(f'Supported token types: {self.SUPPORTED_TOKEN_TYPES}')
 
         token_model = authorization_server.OAuth2Token
-        qs = (F(token_model.access_token) == token) | (F(token_model.refresh_token) == token)
+        qs = (Q(token_model.access_token) == token) | (Q(token_model.refresh_token) == token)
         return q.filter(qs).first()
 
     def revoke_token(self, token: TokenType) -> None:

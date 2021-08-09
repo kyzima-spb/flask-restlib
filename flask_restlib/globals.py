@@ -19,7 +19,7 @@ authorization_server: AuthorizationServer = LocalProxy(  # type: ignore
 )
 
 
-def F(expr):
+def Q(expr):
     """
     An adapter for a model attribute.
 

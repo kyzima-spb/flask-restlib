@@ -14,10 +14,10 @@ class AbstractQueryExpression(metaclass=ABCMeta):
 
     For example::
 
-        >>> from flask_restlib import F, authorization_server
+        >>> from flask_restlib import Q, authorization_server
         >>> model = authorization_server.OAuth2Token
         >>> token = 'abcde12345'
-        >>> (F(model.access_token) == token) | (F(model.refresh_token) == token)
+        >>> (Q(model.access_token) == token) | (Q(model.refresh_token) == token)
         <flask_restlib.contrib.sqla.SQLAQueryExpression object at 0x101029dd0>
 
     An instance of the current class is used as a filter
