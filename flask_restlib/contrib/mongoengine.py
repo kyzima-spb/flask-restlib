@@ -13,18 +13,18 @@ import mongoengine as me
 from mongoengine.errors import OperationError
 from mongoengine.queryset.base import BaseQuerySet
 
-from ..core import (
-    AbstractQueryAdapter,
-    AbstractResourceManager,
-    AbstractFactory
-)
+from ..core import AbstractFactory
 from ..mixins import (
     AuthorizationCodeMixin,
     ClientMixin,
     TokenMixin
 )
 from ..oauth2 import generate_client_id
-from ..orm import AbstractQueryExpression
+from ..orm import (
+    AbstractQueryAdapter,
+    AbstractQueryExpression,
+    AbstractResourceManager,
+)
 from ..schemas import RestlibSchema, RestlibSchemaOpts
 from ..types import (
     TIdentifier,

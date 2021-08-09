@@ -23,18 +23,18 @@ from sqlalchemy_utils.functions import (
 from sqlalchemy_utils.types import UUIDType
 from werkzeug.local import LocalProxy
 
-from ..core import (
-    AbstractQueryAdapter,
-    AbstractResourceManager,
-    AbstractFactory
-)
+from ..core import AbstractFactory
 from ..mixins import (
     AuthorizationCodeMixin,
     ClientMixin,
     TokenMixin
 )
 from ..oauth2 import generate_client_id
-from ..orm import AbstractQueryExpression
+from ..orm import (
+    AbstractQueryAdapter,
+    AbstractQueryExpression,
+    AbstractResourceManager,
+)
 from ..schemas import RestlibMixin
 from ..types import (
     TIdentifier,

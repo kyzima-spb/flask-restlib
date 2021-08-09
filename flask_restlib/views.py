@@ -19,7 +19,7 @@ from webargs.flaskparser import parser
 from werkzeug.http import generate_etag
 
 from . import mixins
-from .core import AbstractFactory, AbstractResourceManager
+from .core import AbstractFactory
 from .globals import current_restlib, authorization_server
 from .http import THttpCache
 from .oauth2 import save_client
@@ -28,6 +28,7 @@ from .schemas import ClientSchema
 from .types import (
     TIdentifier,
     TQueryAdapter,
+    TResourceManager,
     TSchema
 )
 
@@ -98,7 +99,7 @@ class ApiView(MethodView):
 
         return queryset
 
-    def create_resource_manager(self) -> AbstractResourceManager:
+    def create_resource_manager(self) -> TResourceManager:
         """Creates and returns a resource manager instance."""
         return self.get_factory().create_resource_manager()
 
