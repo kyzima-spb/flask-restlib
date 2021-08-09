@@ -19,13 +19,13 @@ authorization_server: AuthorizationServer = LocalProxy(  # type: ignore
 )
 
 
-def F(column):
+def F(expr):
     """
     An adapter for a model attribute.
 
     Arguments:
         column: native attribute of the model."""
-    return current_restlib.factory.create_model_field_adapter(column)
+    return current_restlib.factory.create_query_expression(expr)
 
 
 def query_adapter(base_query) -> TQueryAdapter:

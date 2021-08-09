@@ -46,43 +46,13 @@ __all__ = (
     'AbstractQueryAdapter',
     'AbstractResourceManager',
     'AbstractFactory',
-    'AbstractFilter',
 )
 
 
 DEFAULT_HTTP_ERROR_STATUS = 400
 
 
-class AbstractFilter(metaclass=ABCMeta):
-    """
-    An instance of the current class is used as a filter
-    for the results of a persistent storage query.
-    """
-
-    @abstractmethod
-    def __and__(self, other):
-        pass
-
-    @abstractmethod
-    def __call__(self, q):
-        """
-        Applies the current filter to the given queryset and returns the native queryset.
-
-        Arguments:
-            q: native queryset.
-        """
-
-    @abstractmethod
-    def __or__(self, other):
-        pass
-
-
-class QueryExpression(AbstractFilter):
-    def __init__(self, expr):
-        self.expr = expr
-
-
-class UrlQueryFilter(AbstractFilter):
+class UrlQueryFilter:
     """
     The filter uses a URL query string and schema to collect and validate input data.
 
@@ -343,18 +313,18 @@ class AbstractFactory(metaclass=ABCMeta):
     """
 
     @abstractmethod
-    def create_model_field_adapter(self, column):
+    def create_query_adapter(self, base_query: t.Any) -> TQueryAdapter:
+        """
+        Creates and returns a queryset for retrieving resources from persistent storage.
+        """
+
+    @abstractmethod
+    def create_query_expression(self, expr):
         """
         Creates and returns an adapter for a model attribute.
 
         Arguments:
-            column: native attribute of the model.
-        """
-
-    @abstractmethod
-    def create_query_adapter(self, base_query: t.Any) -> TQueryAdapter:
-        """
-        Creates and returns a queryset for retrieving resources from persistent storage.
+            expr: :class:`.orm.AbstractQueryExpression` or native expression.
         """
 
     @abstractmethod

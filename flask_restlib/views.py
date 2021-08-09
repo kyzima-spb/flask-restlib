@@ -25,7 +25,11 @@ from .http import THttpCache
 from .oauth2 import save_client
 from .permissions import Permission, TokenHasScope
 from .schemas import ClientSchema
-from .types import TIdentifier, TSchema
+from .types import (
+    TIdentifier,
+    TQueryAdapter,
+    TSchema
+)
 
 
 __all__ = (
@@ -81,7 +85,7 @@ class ApiView(MethodView):
         for permission in self.permissions:
             permission.check_resource_permission(self, resource)
 
-    def create_queryset(self):
+    def create_queryset(self) -> TQueryAdapter:
         """
         Creates and returns a native queryset for retrieving resources from persistent storage.
         """

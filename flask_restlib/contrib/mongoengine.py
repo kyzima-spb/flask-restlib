@@ -16,8 +16,7 @@ from mongoengine.queryset.base import BaseQuerySet
 from ..core import (
     AbstractQueryAdapter,
     AbstractResourceManager,
-    AbstractFactory,
-    QueryExpression
+    AbstractFactory
 )
 from ..mixins import (
     AuthorizationCodeMixin,
@@ -25,10 +24,12 @@ from ..mixins import (
     TokenMixin
 )
 from ..oauth2 import generate_client_id
+from ..orm import AbstractQueryExpression
 from ..schemas import RestlibSchema, RestlibSchemaOpts
 from ..types import (
     TIdentifier,
     TQueryAdapter,
+    TQueryExpression,
     TResourceManager,
     TSchema,
 )
@@ -142,43 +143,52 @@ class MongoAutoSchema(RestlibSchema):
     OPTIONS_CLASS = MongoAutoSchemaOpts
 
 
-class MongoModelField:
-    def __init__(self, column):
-        self.column = column
+# todo: ORM Adapter
 
-    def __eq__(self, other):
-        return self.make_expression(self.column.name, other)
+class MongoEngineQueryExpression(AbstractQueryExpression):
+    def __call__(self, q):
+        return q.filter(self._native_expression)
 
-    def __ne__(self, other):
-        return self.make_expression(f'{self.column.name}__ne', other)
+    def __and__(self, other) -> TQueryExpression:
+        return self.__class__(self._native_expression & self.to_native(other))
 
-    def __lt__(self, other):
-        return self.make_expression(f'{self.column.name}__lt', other)
+    def __or__(self, other) -> TQueryExpression:
+        return self.__class__(self._native_expression | self.to_native(other))
 
-    def __le__(self, other):
-        return self.make_expression(f'{self.column.name}__lte', other)
+    def __eq__(self, other: t.Any) -> TQueryExpression:
+        if isinstance(self._native_expression, me.fields.BaseField):
+            return self._make_expression(self._native_expression.name, other)
+        return NotImplemented
 
-    def __gt__(self, other):
-        return self.make_expression(f'{self.column.name}__gt', other)
+    def __ne__(self, other: t.Any) -> TQueryExpression:
+        if isinstance(self._native_expression, me.fields.BaseField):
+            return self._make_expression(f'{self._native_expression.name}__ne', other)
+        return NotImplemented
 
-    def __ge__(self, other):
-        return self.make_expression(f'{self.column.name}__gte', other)
+    def __lt__(self, other: t.Any) -> TQueryExpression:
+        if isinstance(self._native_expression, me.fields.BaseField):
+            return self._make_expression(f'{self._native_expression.name}__lt', other)
+        return NotImplemented
 
-    def make_expression(self, argument_name, value):
-        return MongoQueryExpression(
-            me.Q(**{argument_name: value})
+    def __le__(self, other: t.Any) -> TQueryExpression:
+        if isinstance(self._native_expression, me.fields.BaseField):
+            return self._make_expression(f'{self._native_expression.name}__lte', other)
+        return NotImplemented
+
+    def __gt__(self, other: t.Any) -> TQueryExpression:
+        if isinstance(self._native_expression, me.fields.BaseField):
+            return self._make_expression(f'{self._native_expression.name}__gt', other)
+        return NotImplemented
+
+    def __ge__(self, other: t.Any) -> TQueryExpression:
+        if isinstance(self._native_expression, me.fields.BaseField):
+            return self._make_expression(f'{self._native_expression.name}__gte', other)
+        return NotImplemented
+
+    def _make_expression(self, argument_name, value):
+        return self.__class__(
+            me.Q(**{argument_name: self.to_native(value)})
         )
-
-
-class MongoQueryExpression(QueryExpression):
-    def __and__(self, other):
-        return self.__class__(self.expr & other.expr)
-
-    def __call__(self, query):
-        return query(self.expr)
-
-    def __or__(self, other):
-        return self.__class__(self.expr | other.expr)
 
 
 class MongoQueryAdapter(AbstractQueryAdapter):
@@ -302,11 +312,11 @@ class MongoResourceManager(AbstractResourceManager):
 
 
 class MongoEngineFactory(AbstractFactory):
-    def create_model_field_adapter(self, column):
-        return MongoModelField(column)
-
     def create_query_adapter(self, base_query: t.Any) -> TQueryAdapter:
         return MongoQueryAdapter(base_query)
+
+    def create_query_expression(self, column):
+        return MongoEngineQueryExpression(column)
 
     def create_resource_manager(self) -> TResourceManager:
         return MongoResourceManager()

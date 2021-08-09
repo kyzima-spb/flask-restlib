@@ -26,8 +26,7 @@ from werkzeug.local import LocalProxy
 from ..core import (
     AbstractQueryAdapter,
     AbstractResourceManager,
-    AbstractFactory,
-    QueryExpression,
+    AbstractFactory
 )
 from ..mixins import (
     AuthorizationCodeMixin,
@@ -35,10 +34,12 @@ from ..mixins import (
     TokenMixin
 )
 from ..oauth2 import generate_client_id
+from ..orm import AbstractQueryExpression
 from ..schemas import RestlibMixin
 from ..types import (
     TIdentifier,
     TQueryAdapter,
+    TQueryExpression,
     TResourceManager,
     TSchema,
 )
@@ -144,38 +145,35 @@ class SQLAlchemyAutoSchema(_SQLAlchemyAutoSchema):
     OPTIONS_CLASS = SQLAlchemyAutoSchemaOpts
 
 
-class SQLAModelField:
-    def __init__(self, column):
-        self.column = column
+# todo: ORM Adapter
 
-    def __eq__(self, other):
-        return SQLAQueryExpression(self.column == other)
-
-    def __ne__(self, other):
-        return SQLAQueryExpression(self.column.name != other)
-
-    def __lt__(self, other):
-        return SQLAQueryExpression(self.column.name < other)
-
-    def __le__(self, other):
-        return SQLAQueryExpression(self.column.name <= other)
-
-    def __gt__(self, other):
-        return SQLAQueryExpression(self.column.name > other)
-
-    def __ge__(self, other):
-        return SQLAQueryExpression(self.column.name >= other)
-
-
-class SQLAQueryExpression(QueryExpression):
-    def __and__(self, other):
-        return self.__class__(sa.and_(self.expr, other.expr))
-
+class SQLAQueryExpression(AbstractQueryExpression):
     def __call__(self, q):
-        return q.filter(self.expr)
+        return q.filter(self._native_expression)
 
-    def __or__(self, other):
-        return self.__class__(sa.or_(self.expr, other.expr))
+    def __and__(self, other) -> TQueryExpression:
+        return self.__class__(self._native_expression & self.to_native(other))
+
+    def __or__(self, other) -> TQueryExpression:
+        return self.__class__(self._native_expression | self.to_native(other))
+
+    def __eq__(self, other: t.Any) -> TQueryExpression:
+        return self.__class__(self._native_expression == self.to_native(other))
+
+    def __ne__(self, other: t.Any) -> TQueryExpression:
+        return self.__class__(self._native_expression != self.to_native(other))
+
+    def __lt__(self, other: t.Any) -> TQueryExpression:
+        return self.__class__(self._native_expression < self.to_native(other))
+
+    def __le__(self, other: t.Any) -> TQueryExpression:
+        return self.__class__(self._native_expression <= self.to_native(other))
+
+    def __gt__(self, other: t.Any) -> TQueryExpression:
+        return self.__class__(self._native_expression > self.to_native(other))
+
+    def __ge__(self, other: t.Any) -> TQueryExpression:
+        return self.__class__(self._native_expression >= self.to_native(other))
 
 
 class QueryAdapter(AbstractQueryAdapter):
@@ -290,11 +288,11 @@ class SQLAFactory(AbstractFactory):
 
         return ext.db.session
 
-    def create_model_field_adapter(self, column):
-        return SQLAModelField(column)
-
     def create_query_adapter(self, base_query: t.Any) -> TQueryAdapter:
         return QueryAdapter(base_query, session=self.session)
+
+    def create_query_expression(self, column):
+        return SQLAQueryExpression(column)
 
     def create_resource_manager(self) -> TResourceManager:
         return ResourceManager(self.session)
