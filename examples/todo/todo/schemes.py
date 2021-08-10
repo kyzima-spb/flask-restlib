@@ -8,8 +8,14 @@ from .extensions import rest
 
 class TaskSchema(rest.Schema):
     id = fields.String()
-    title = fields.String(required=True, validate=validators.Length(min=1))
-    planned = fields.DateTime(required=True, validate=lambda dt: dt > datetime.now())
+    title = fields.String(
+        required=True,
+        validate=validators.Length(min=1, max=255)
+    )
+    planned = fields.DateTime(
+        required=True,
+        validate=lambda dt: dt > datetime.now()
+    )
     description = fields.String()
     done = fields.Boolean()
     created = fields.DateTime()
