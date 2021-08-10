@@ -47,6 +47,7 @@ setup(
         ],
         'mongoengine': [
             'mongoengine>=0.23',
+            'flask-mongoengine>=1.0',
         ],
     },
     classifiers=[
