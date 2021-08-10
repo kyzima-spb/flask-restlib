@@ -1,8 +1,8 @@
 from flask import Flask
+from flask_useful import register_commands, register_extensions
 
 from . import views
 from .extensions import rest
-from .models import db
 
 
 def create_app(test_config=None):
@@ -16,7 +16,7 @@ def create_app(test_config=None):
         # load the test config if passed in
         app.config.from_mapping(test_config)
 
-    db.init_app(app)
-    rest.init_app(app)
+    register_extensions(app, 'extensions')
+    register_commands(app, 'cli')
 
     return app
