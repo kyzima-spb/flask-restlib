@@ -78,9 +78,7 @@ class ListMixin:
     Mixin for getting all resources from the collection.
 
     Attributes:
-        filter_instance:
-            ...
-        search_instance:
+        filters:
             ...
         sort_param_name (str):
             The name of the URL parameter that is used for sorting.
@@ -90,8 +88,7 @@ class ListMixin:
             An instance of the paginator.
     """
 
-    filter_instance = None
-    search_instance = None
+    filters: t.ClassVar[list] = []
     pagination_instance: t.ClassVar = None
     sort_param_name = None
     sorting_fields = ()
@@ -120,11 +117,8 @@ class ListMixin:
         q: TQueryAdapter = self.create_queryset() # type: ignore
         headers: THttpHeaders = []
 
-        if self.filter_instance is not None:
-            q.filter(self.filter_instance)
-
-        if self.search_instance is not None:
-            q.filter(self.search_instance)
+        for f in self.filters:
+            q = f.filter(q)
 
         if current_app.config['RESTLIB_SORTING_ENABLED']:
             sort = self._get_sort()

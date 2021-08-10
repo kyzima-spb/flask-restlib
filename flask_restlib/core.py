@@ -1,5 +1,6 @@
 from __future__ import annotations
 from abc import ABCMeta, abstractmethod
+from copy import copy
 from functools import partial
 import typing as t
 
@@ -13,6 +14,7 @@ from werkzeug.exceptions import HTTPException
 
 from . import exceptions
 from .cli import api_cli
+from .globals import current_restlib
 from .http import THttpCache, HttpCache, HTTPMethodOverrideMiddleware
 from .mixins import (
     AuthorizationCodeType,
@@ -30,6 +32,7 @@ from .types import (
     ErrorResponse,
     CatchExceptionCallable,
     TFactory,
+    TFilterSchema,
     TFunc,
     TResourceManager,
     TQueryAdapter,
@@ -39,13 +42,14 @@ from .types import (
 
 __all__ = (
     'AbstractFactory',
+    'AbstractUrlQueryFilter',
 )
 
 
 DEFAULT_HTTP_ERROR_STATUS = 400
 
 
-class UrlQueryFilter:
+class AbstractUrlQueryFilter(metaclass=ABCMeta):
     """
     The filter uses a URL query string and schema to collect and validate input data.
 
@@ -59,37 +63,56 @@ class UrlQueryFilter:
     GET /users?q=Admin
     """
 
-    def __init__(self, filter_schema: t.Union[type, Schema]):
+    def __init__(self, filter_schema: TFilterSchema) -> None:
         """
         Arguments:
-            filter_schema (type|Schema):
-                A reference to a schema class, or an instance for collecting and validating input data.
+            filter_schema (dict|type|Schema):
+                Dictionary, or a Schema instance or a Schema subclass for validating input data.
         """
-        if isinstance(filter_schema, type):
-            filter_schema = filter_schema(partial=True)
-        else:
-            if not filter_schema.partial:
-                filter_schema.partial = True
-
         self._filter_schema = filter_schema
 
-    def __call__(self, q):
-        input_data = self.get_input_data()
-        return self._do_apply(q, input_data)
-
     @abstractmethod
-    def _do_apply(self, q, input_data: dict):
+    def __call__(self, q: TQueryAdapter, input_data: dict) -> TQueryAdapter:
         """
-        Applies the current filter to the given queryset and returns the native queryset.
+        Applies the current filter to the given queryset and returns new queryset.
 
         Arguments:
-            q: native queryset.
+            q: current queryset.
             input_data (dict): the input used for filtering.
         """
 
+    def filter(self, q: TQueryAdapter) -> TQueryAdapter:
+        """
+        Applies the current filter to the given queryset and returns new queryset.
+
+        Arguments:
+            q: current queryset.
+        """
+        return self(q, self.get_input_data())
+
     def get_input_data(self) -> dict:
         """Returns the input used for filtering."""
-        return parser.parse(self._filter_schema, location='query')
+        return parser.parse(self.get_schema(), location='query')
+
+    def get_schema(self) -> TSchema:
+        """Returns an instance of the schema for validating the input."""
+        schema = self._filter_schema
+
+        if isinstance(schema, Schema):
+            schema.partial = True
+            return schema
+
+        if isinstance(schema, type) and issubclass(schema, Schema):
+            self._filter_schema = schema(partial=True)
+        elif isinstance(schema, dict):
+            self._filter_schema = Schema.from_dict(schema)(partial=True)
+        else:
+            raise ValueError(
+                f'`{self.__class__}.filter_schema` can be a dictionary, '
+                'or a Schema instance or a Schema subclass.'
+            )
+
+        return self._filter_schema
 
 
 class AbstractFactory(metaclass=ABCMeta):

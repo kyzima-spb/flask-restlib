@@ -59,11 +59,11 @@ class AbstractQueryExpression(metaclass=ABCMeta):
         """
 
     @abstractmethod
-    def __and__(self, other) -> TQueryExpression:
+    def __and__(self, other: t.Any) -> TQueryExpression:
         """Implement the ``&`` operator."""
 
     @abstractmethod
-    def __or__(self, other) -> TQueryExpression:
+    def __or__(self, other: t.Any) -> TQueryExpression:
         """Implement the ``|`` operator."""
 
     @abstractmethod

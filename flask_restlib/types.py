@@ -5,6 +5,14 @@ import typing as t
 from flask import request
 from flask.views import View
 from marshmallow import Schema
+from marshmallow.base import SchemaABC
+from marshmallow.fields import Field
+
+if t.TYPE_CHECKING:
+    from .core import AbstractFactory
+    from .orm import AbstractQueryExpression
+    from .orm import AbstractQueryAdapter
+    from .orm import AbstractResourceManager
 
 
 @dataclasses.dataclass
@@ -48,8 +56,9 @@ THttpHeaders = list[THttpHeader]
 TFactory = t.TypeVar('TFactory', bound='AbstractFactory')
 TQueryAdapter = t.TypeVar('TQueryAdapter', bound='AbstractQueryAdapter')
 TResourceManager = t.TypeVar('TResourceManager', bound='AbstractResourceManager')
-TSchema = t.TypeVar('TSchema', bound=Schema)
+TSchema = t.TypeVar('TSchema', bound=SchemaABC)
 
+TFilterSchema = t.Union[dict[str, t.Union[Field, type]], t.Type[TSchema], TSchema]
 
 # AuthorizationCodeType = t.TypeVar('AuthorizationCodeType', bound=_AuthorizationCodeMixin)
 # ClientType = t.TypeVar('ClientType', bound=_ClientMixin)
