@@ -9,6 +9,11 @@ from . import schemes
 from .extensions import rest
 
 
+class Status(views.ListView, views.CreateView):
+    model_class = models.Status
+    schema_class = schemes.StatusSchema
+
+
 class Tasks(views.ListView, views.CreateView):
     class MyFilter(AbstractUrlQueryFilter):
         def __call__(self, q, input_data):
@@ -27,6 +32,10 @@ class Tasks(views.ListView, views.CreateView):
 class TasksItem(views.RetrieveView, views.UpdateView, views.DestroyView):
     model_class = models.Task
     schema_class = schemes.TaskSchema
+
+
+with rest.router.collection('status') as c:
+    c.add_view(Status)
 
 
 with rest.router.collection('tasks') as c:

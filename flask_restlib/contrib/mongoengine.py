@@ -4,11 +4,14 @@ from functools import partial
 import time
 import typing as t
 
+from marshmallow_mongoengine import (
+    ModelSchema as _MongoEngineSchema,
+    SchemaOpts as _MongoEngineSchemaOpts,
+)
 try:
     from flask_mongoengine import Document
 except ImportError:
     from mongoengine import Document
-import marshmallow as ma
 import mongoengine as me
 from mongoengine.errors import OperationError
 from mongoengine.queryset.base import BaseQuerySet
@@ -25,7 +28,7 @@ from ..orm import (
     AbstractQueryExpression,
     AbstractResourceManager,
 )
-from ..schemas import RestlibSchema, RestlibSchemaOpts
+from ..schemas import RestlibMixin
 from ..types import (
     TIdentifier,
     TQueryAdapter,
@@ -127,23 +130,26 @@ class AbstractOAuth2AuthorizationCode(AuthorizationCodeMixin, Document):
 # todo: Marshmallow
 
 
-class MongoSchemaOpts(RestlibSchemaOpts):
+class MongoSchemaOpts(RestlibMixin.Opts, _MongoEngineSchemaOpts):
+    def __init__(self, meta: object, *args: t.Any, **kwargs: t.Any) -> None:
+        super().__init__(meta, *args, **kwargs)  # type: ignore
+        self.model_build_obj: bool = getattr(meta, 'model_build_obj', False)
+
+
+class MongoAutoSchemaOpts(MongoSchemaOpts):
     pass
 
 
-class MongoAutoSchemaOpts(RestlibSchemaOpts):
-    pass
-
-
-class MongoSchema(RestlibSchema):
+class MongoSchema(_MongoEngineSchema):
     OPTIONS_CLASS = MongoSchemaOpts
 
 
-class MongoAutoSchema(RestlibSchema):
+class MongoAutoSchema(_MongoEngineSchema):
     OPTIONS_CLASS = MongoAutoSchemaOpts
 
 
 # todo: ORM Adapter
+
 
 class MongoEngineQueryExpression(AbstractQueryExpression):
     def __call__(self, q):
