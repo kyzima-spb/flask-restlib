@@ -12,12 +12,12 @@ RUN set -x \
 #COPY ./requirements.txt /app/requirements.txt
 COPY ./setup.py /app/setup.py
 
-RUN pydep.sh
-
 RUN pip install -q \
         --no-cache-dir \
         --disable-pip-version-check \
         --extra-index-url=https://test.pypi.org/simple \
         flask-restlib[sqla]
+
+RUN pydep.sh
 
 ADD ./ /app
