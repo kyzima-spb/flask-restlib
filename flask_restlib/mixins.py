@@ -14,6 +14,7 @@ from flask_login import UserMixin as _UserMixin
 from flask.typing import ResponseReturnValue, HeadersValue
 from webargs import fields
 from webargs import validate as validators
+from webargs.core import ArgMap as TArgMap
 from webargs.flaskparser import parser
 from werkzeug.datastructures import Headers
 
@@ -73,6 +74,64 @@ class DestroyMixin:
         return '', 204
 
 
+class SortHandler:
+    __slots__ = ('_sorting_fields', '_sort_param_name')
+
+    def __init__(self, sorting_fields: t.Sequence[str], sort_param_name: str = '') -> None:
+        """
+        Arguments:
+            sorting_fields: The names of the attributes of the model to be sorted.
+            sort_param_name (str): the name of the URL parameter that is used for sorting.
+        """
+        self._sorting_fields: set[str] = set(sorting_fields)
+        self._sort_param_name = sort_param_name
+
+    def __call__(self, q: TQueryAdapter, input_data: t.Sequence[str]) -> TQueryAdapter:
+        """
+        Applies a sort to the given queryset and returns new queryset.
+
+        Arguments:
+            q: current queryset.
+            input_data (dict): sorting rules.
+        """
+        return q.order_by(*input_data)
+
+    def execute(self, q: TQueryAdapter) -> TQueryAdapter:
+        """
+        Applies a sort to the given queryset and returns new queryset.
+
+        Arguments:
+            q: current queryset.
+        """
+        if request.args.get(self.sort_param_name):
+            input_data = parser.parse(self.schema, location='query')['sort']
+            q = self(q, input_data)
+        return q
+
+    @property
+    def schema(self) -> TArgMap:
+        class Validator(validators.OneOf):
+            def __call__(self, value: t.Any) -> t.Any:
+                return super().__call__(strip_sorting_flag(value))
+
+        return {
+            'sort': fields.DelimitedList(
+                fields.String(
+                    validate=Validator(self._sorting_fields),
+                    data_key=self.sort_param_name,
+                ),
+                missing=(),
+            )
+        }
+
+    @property
+    def sort_param_name(self) -> str:
+        """Returns the name of the URL parameter that is used for sorting."""
+        if not self._sort_param_name:
+            self._sort_param_name = current_app.config['RESTLIB_URL_PARAM_SORT']
+        return self._sort_param_name
+
+
 class ListMixin:
     """
     Mixin for getting all resources from the collection.
@@ -80,38 +139,23 @@ class ListMixin:
     Attributes:
         filters:
             ...
-        sort_param_name (str):
-            The name of the URL parameter that is used for sorting.
-        sorting_fields (tuple):
-            The names of the attributes of the model to be sorted.
         pagination_instance:
             An instance of the paginator.
     """
 
     filters: t.ClassVar[list] = []
     pagination_instance: t.ClassVar = None
-    sort_param_name = None
-    sorting_fields = ()
-
-    def _get_sort(self):
-        def validate(v):
-            validator = validators.OneOf(self.sorting_fields)
-            validator(strip_sorting_flag(v))
-
-        sort_param_name = self.sort_param_name or current_app.config['RESTLIB_URL_PARAM_SORT']
-        sort_schema = {
-            sort_param_name: fields.DelimitedList(
-                fields.String(validate=validate)
-            )
-        }
-
-        return parser.parse(sort_schema, location='query').get('sort')
+    sort_handler: t.ClassVar = None
 
     def get_pagination(self) -> TPagination:
         """Returns an instance of the paginator."""
         if self.pagination_instance is None:
             return current_restlib.pagination_instance
         return self.pagination_instance
+
+    def get_sort(self):
+        """Returns an instance of the sort handler."""
+        return self.sort_handler
 
     def list(self) -> ResponseReturnValue:
         q: TQueryAdapter = self.create_queryset() # type: ignore
@@ -121,9 +165,9 @@ class ListMixin:
             q = f.filter(q)
 
         if current_app.config['RESTLIB_SORTING_ENABLED']:
-            sort = self._get_sort()
-            if sort:
-                q.order_by(*sort)
+            sort_handler = self.get_sort()
+            if sort_handler is not None:
+                self.sort_handler.execute(q)
 
         if current_app.config['RESTLIB_PAGINATION_ENABLED']:
             pagination = self.get_pagination()

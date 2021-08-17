@@ -200,7 +200,7 @@ class AbstractQueryAdapter(metaclass=ABCMeta):
     def order_by(
         self: TQueryAdapter,
         column: str,
-        *columns: tuple[str]
+        *columns: t.Sequence[str]
     ) -> TQueryAdapter:
         """Applies sorting by attribute."""
         self._order_by.append((column, *columns))
