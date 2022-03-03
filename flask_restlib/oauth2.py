@@ -3,6 +3,7 @@ from functools import lru_cache
 import secrets
 import typing
 import typing as t
+from urllib.parse import urlparse
 from uuid import uuid4
 
 from authlib.oauth2 import OAuth2Error
@@ -306,8 +307,25 @@ class LogoutView(MethodView):
     decorators = [login_required]
 
     def get(self):
+        redirect_url = url_for('oauth.login')
+        client_id = request.args.get('client_id')
+        logout_uri = request.args.get(
+            current_app.config['RESTLIB_URL_PARAM_LOGOUT']
+        )
+
+        if client_id and logout_uri:
+            client = authorization_server.query_client(client_id)
+
+            if client is not None:
+                redirect_domains = {urlparse(url).netloc for url in client.redirect_uris}
+                logout_domain = urlparse(logout_uri).netloc
+
+                if logout_domain in redirect_domains:
+                    redirect_url = logout_uri
+
         logout_user()
-        return redirect(url_for('oauth.login'))
+
+        return redirect(redirect_url)
 
 
 class AuthorizeView(MethodView):
