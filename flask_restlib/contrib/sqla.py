@@ -43,7 +43,6 @@ from ..types import (
     TResourceManager,
     TSchema,
 )
-from ..utils import strip_sorting_flag
 
 
 __all__ = (
@@ -216,21 +215,27 @@ class QueryAdapter(AbstractQueryAdapter):
         return q
 
     def order_by(
-            self: TQueryAdapter,
-            column: str,
-            *columns: tuple[str]
+        self: TQueryAdapter,
+        column: t.Union[str, tuple[str, bool]],
+        *columns: tuple[t.Union[str, tuple[str, bool]]]
     ) -> TQueryAdapter:
-        args = []
+        columns = []
 
-        for name in (column, *columns):
-            if isinstance(name, str):
-                order = sa.desc if name.startswith('-') else sa.asc
-                name = order(sa.text(
-                    strip_sorting_flag(name)
-                ))
-            args.append(name)
+        for param in (column, *columns):
+            if isinstance(param, str):
+                name = param
+                order = sa.asc
+            else:
+                name, desc = param
+                order = sa.desc if desc else sa.asc
 
-        return super().order_by(*args)
+            columns.append(
+                order(sa.text(name))
+            )
+
+        self._order_by.append(tuple(columns))
+
+        return self
 
 
 class ResourceManager(AbstractResourceManager):

@@ -238,6 +238,25 @@ class MongoQueryAdapter(AbstractQueryAdapter):
 
         return q
 
+    def order_by(
+        self: TQueryAdapter,
+        column: t.Union[str, tuple[str, bool]],
+        *columns: tuple[t.Union[str, tuple[str, bool]]]
+    ) -> TQueryAdapter:
+        columns = []
+
+        for param in (column, *columns):
+            if isinstance(param, str):
+                columns.append(param)
+            else:
+                name, desc = param
+                order = '-' if desc else '+'
+                columns.append(f'{order}{name}')
+
+        self._order_by.append(tuple(columns))
+
+        return self
+
 
 class MongoResourceManager(AbstractResourceManager):
     def _prepare_identifier(self, model_class, identifier: TIdentifier):
