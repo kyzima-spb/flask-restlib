@@ -32,6 +32,7 @@ from .exceptions import LogicalError
 from .forms import LoginForm
 from .globals import (
     authorization_server,
+    current_restlib,
     Q,
     query_adapter,
     resource_manager
@@ -415,6 +416,7 @@ class AuthorizationServer(_AuthorizationServer):
 
         self.login_manager = LoginManager()
         self.login_manager.user_loader(self._load_user)
+        self.login_manager.request_loader(self._load_user_from_request)
         self.login_manager.login_view = 'oauth.login'
 
         self.index_endpoint = IndexView.as_view('index')
@@ -477,9 +479,17 @@ class AuthorizationServer(_AuthorizationServer):
         self.bp.add_url_rule('/revoke', view_func=self.revoke_token_endpoint)
         app.register_blueprint(self.bp, url_prefix=app.config['RESTLIB_OAUTH2_URL_PREFIX'])
 
-    def _load_user(self, user_id):
+    def _load_user(self, user_id) -> t.Optional[t.Any]:
         """Returns user by user_id."""
         return resource_manager().get(self.OAuth2User, user_id)
+
+    def _load_user_from_request(self, request) -> t.Optional[t.Any]:
+        """Returns user by access token."""
+        try:
+            token = current_restlib.resource_protector.acquire_token()
+            return token.get_user()
+        except:
+            return None
 
     def _query_client(self, client_id: str) -> t.Optional[ClientType]:
         """Returns client by client_id."""

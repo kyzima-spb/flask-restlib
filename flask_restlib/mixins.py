@@ -9,20 +9,18 @@ from authlib.oauth2.rfc6749 import (
     TokenMixin as _TokenMixin
 )
 from authlib.oauth2.rfc6749.util import scope_to_list, list_to_scope
-from flask import request, abort, current_app
+from flask import request, current_app
 from flask_login import UserMixin as _UserMixin
 from flask.typing import ResponseReturnValue, HeadersValue
-from webargs import fields
-from webargs import validate as validators
-from webargs.core import ArgMap as TArgMap
 from webargs.flaskparser import parser
 from werkzeug.datastructures import Headers
 
 from .globals import current_restlib
 from .pagination import TPagination
-from .utils import strip_sorting_flag
+from .sorting import TSortHandler
 from .types import (
     TIdentifier,
+    TLookupNames,
     TQueryAdapter,
     THttpHeaders
 )
@@ -74,86 +72,28 @@ class DestroyMixin:
         return '', 204
 
 
-class SortHandler:
-    __slots__ = ('_sorting_fields', '_sort_param_name')
-
-    def __init__(self, sorting_fields: t.Sequence[str], sort_param_name: str = '') -> None:
-        """
-        Arguments:
-            sorting_fields: The names of the attributes of the model to be sorted.
-            sort_param_name (str): the name of the URL parameter that is used for sorting.
-        """
-        self._sorting_fields: set[str] = set(sorting_fields)
-        self._sort_param_name = sort_param_name
-
-    def __call__(self, q: TQueryAdapter, input_data: t.Sequence[str]) -> TQueryAdapter:
-        """
-        Applies a sort to the given queryset and returns new queryset.
-
-        Arguments:
-            q: current queryset.
-            input_data (dict): sorting rules.
-        """
-        return q.order_by(*input_data)
-
-    def execute(self, q: TQueryAdapter) -> TQueryAdapter:
-        """
-        Applies a sort to the given queryset and returns new queryset.
-
-        Arguments:
-            q: current queryset.
-        """
-        if request.args.get(self.sort_param_name):
-            input_data = parser.parse(self.schema, location='query')['sort']
-            q = self(q, input_data)
-        return q
-
-    @property
-    def schema(self) -> TArgMap:
-        class Validator(validators.OneOf):
-            def __call__(self, value: t.Any) -> t.Any:
-                return super().__call__(strip_sorting_flag(value))
-
-        return {
-            'sort': fields.DelimitedList(
-                fields.String(
-                    validate=Validator(self._sorting_fields),
-                    data_key=self.sort_param_name,
-                ),
-                missing=(),
-            )
-        }
-
-    @property
-    def sort_param_name(self) -> str:
-        """Returns the name of the URL parameter that is used for sorting."""
-        if not self._sort_param_name:
-            self._sort_param_name = current_app.config['RESTLIB_URL_PARAM_SORT']
-        return self._sort_param_name
-
-
-class ListMixin:
+class ListMixin(t.Generic[TPagination, TSortHandler]):
     """
     Mixin for getting all resources from the collection.
 
     Attributes:
         filters:
             ...
-        pagination_instance:
-            An instance of the paginator.
+        pagination_handler: An instance of the paginator.
+        sort_handler: an instance of the sort handler.
     """
 
-    filters: t.ClassVar[list] = []
-    pagination_instance: t.ClassVar = None
-    sort_handler: t.ClassVar = None
+    filters = []
+    pagination_handler: t.Optional[TPagination] = None
+    sort_handler: t.Optional[TSortHandler] = None
 
     def get_pagination(self) -> TPagination:
         """Returns an instance of the paginator."""
-        if self.pagination_instance is None:
-            return current_restlib.pagination_instance
-        return self.pagination_instance
+        if self.pagination_handler is None:
+            return current_restlib.pagination_handler
+        return self.pagination_handler
 
-    def get_sort(self):
+    def get_sort(self) -> t.Optional[TSortHandler]:
         """Returns an instance of the sort handler."""
         return self.sort_handler
 
@@ -167,14 +107,14 @@ class ListMixin:
         if current_app.config['RESTLIB_SORTING_ENABLED']:
             sort_handler = self.get_sort()
             if sort_handler is not None:
-                self.sort_handler.execute(q)
+                sort_handler.execute(q)
 
         if current_app.config['RESTLIB_PAGINATION_ENABLED']:
             pagination = self.get_pagination()
             q, pagination_headers = pagination(q, request.url)
             headers.extend(pagination_headers)
 
-        return self.create_schema(many=True).dump(q) # type: ignore
+        return self.create_schema(many=True).dump(q), headers # type: ignore
 
 
 class RetrieveMixin:
@@ -208,26 +148,26 @@ class CreateViewMixin(CreateMixin):
 
 
 class DestroyViewMixin(DestroyMixin):
-    lookup_names = ('id',)
+    lookup_names: t.ClassVar[TLookupNames] = ('id',)
 
     def delete(self, id: TIdentifier) -> ResponseReturnValue:
         return self.destroy(id)
 
 
-class ListViewMixin(ListMixin):
+class ListViewMixin(ListMixin[TPagination, TSortHandler]):
     def get(self) -> ResponseReturnValue:
         return self.list()
 
 
 class RetrieveViewMixin(RetrieveMixin):
-    lookup_names = ('id',)
+    lookup_names: t.ClassVar[TLookupNames] = ('id',)
 
     def get(self, id: TIdentifier) -> ResponseReturnValue:
         return self.retrieve(id)
 
 
 class UpdateViewMixin(UpdateMixin):
-    lookup_names = ('id',)
+    lookup_names: t.ClassVar[TLookupNames] = ('id',)
 
     def put(self, id: TIdentifier) -> ResponseReturnValue:
         return self.update(id)
@@ -526,6 +466,10 @@ class TokenMixin(_TokenMixin):
 
     def get_expires_at(self) -> int:
         return self.issued_at + self.expires_in
+
+    def get_user(self) -> t.Any:
+        """Returns token owner."""
+        return self.user
 
     def is_refresh_token_valid(self) -> bool:
         """Returns true if the token is not expired, false otherwise."""

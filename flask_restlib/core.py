@@ -94,7 +94,7 @@ class AbstractUrlQueryFilter(metaclass=ABCMeta):
         """Returns the input used for filtering."""
         return parser.parse(self.get_schema(), location='query')
 
-    def get_schema(self) -> TSchema:
+    def get_schema(self) -> Schema:
         """Returns an instance of the schema for validating the input."""
         schema = self._filter_schema
 
@@ -145,7 +145,7 @@ class AbstractFactory(metaclass=ABCMeta):
         """Creates and returns a resource manager instance."""
 
     @abstractmethod
-    def create_schema(self, model_class) -> t.Type[TSchema]:
+    def create_schema(self, model_class: t.Type) -> t.Type[TSchema]:
         """
         Creates and returns an automatic schema class.
 
@@ -188,13 +188,17 @@ class AbstractFactory(metaclass=ABCMeta):
         """Creates and returns the OAuth2 code class."""
 
 
-class RestLib:
+# def f(p: TPagination, default: TPagination) -> TPagination:
+#     return p or default
+# reveal_type(f(LimitOffsetPagination(), LimitOffsetPagination()))
+
+class RestLib(t.Generic[TPagination]):
     __slots__ = (
         '_deferred_error_handlers',
         'app',
         'cors',
         'factory',
-        'pagination_instance',
+        'pagination_handler',
         'http_cache_instance',
         'router',
         'resource_protector',
@@ -209,7 +213,7 @@ class RestLib:
         app: t.Optional[Flask] = None,
         *,
         factory: TFactory,
-        pagination_instance: TPagination = None,
+        pagination_handler: t.Optional[TPagination] = None,
         http_cache_instance: THttpCache = None,
         auth_options: dict = None
     ) -> None:
@@ -218,7 +222,7 @@ class RestLib:
         self.app = app
         self.cors = CORS()
         self.factory = factory
-        self.pagination_instance = pagination_instance or LimitOffsetPagination()
+        self.pagination_handler = pagination_handler or LimitOffsetPagination()
         self.http_cache_instance = http_cache_instance or HttpCache()
         self.router = Router('api')
 
@@ -339,6 +343,7 @@ class RestLib:
         app.config.setdefault('RESTLIB_SORTING_ENABLED', True)
         app.config.setdefault('RESTLIB_URL_PARAM_SORT', 'sort')
         app.config.setdefault('RESTLIB_REMEMBER_ME', False)
+        app.config.setdefault('RESTLIB_URL_PARAM_LOGOUT', 'logout_uri')
         app.config.setdefault('RESTLIB_HTTP_CACHE_DISABLE', False)
         app.config.setdefault('RESTLIB_CONCURRENCY_CONTROL_DISABLE', False)
 
