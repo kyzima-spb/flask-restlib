@@ -38,16 +38,25 @@ class NoResourcesFound(RestlibError):
 
 
 class DuplicateResource(RestlibError):
-    pass
+    default_message = 'Resource already exists.'
 
 
 class LogicalError(RestlibError):
-    pass
+    default_message = 'The operation could not be performed due to a logical error.'
+
+    def __init__(
+        self,
+        message: t.Optional[str] = None,
+        detail: t.Optional[dict] = None
+    ) -> None:
+        super().__init__(message, {
+            'errors': detail,
+        })
 
 
-# PermissionDenied
 class AuthorizationError(RestlibError):
     """There are not enough rights to perform the action."""
+    default_message = 'There are not enough rights to perform the action.'
 
     def __init__(
         self,
@@ -61,3 +70,4 @@ class AuthorizationError(RestlibError):
 
 class AuthenticationError(RestlibError):
     """The user did not provide credentials."""
+    default_message = 'Authentication is required to complete this action.'
