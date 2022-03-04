@@ -44,6 +44,7 @@ TException = t.TypeVar('TException', bound=Exception)
 CatchExceptionCallable = t.Callable[[TException, ErrorResponse], None]
 
 TIdentifier = t.Union[t.Any, tuple, dict]
+TLookupNames = t.Sequence[str]
 TView = t.Union[t.Callable, View]
 
 # Uses for argument filter_callback in AbstractQueryAdapter.filter() method.

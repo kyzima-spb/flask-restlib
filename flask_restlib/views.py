@@ -27,6 +27,7 @@ from .permissions import Permission, TokenHasScope
 from .schemas import ClientSchema
 from .types import (
     TIdentifier,
+    TLookupNames,
     TQueryAdapter,
     TResourceManager,
     TSchema
@@ -58,11 +59,11 @@ class ApiView(MethodView):
     http_cache_instance = None
     http_cache_disable: t.ClassVar[bool] = False
     queryset = None
-    lookup_names: t.ClassVar[tuple[str, ...]] = ()
+    lookup_names: t.ClassVar[TLookupNames] = ()
     methods_returning_etag: t.ClassVar[set[str]] = {'GET', 'HEAD', 'POST', 'PUT', 'PATCH'}
-    model_class = None
+    model_class: t.Type = None
     permissions: list[Permission] = []
-    schema_class = None
+    schema_class: t.Type = None
 
     def get_factory(self) -> AbstractFactory:
         """Returns an instance of the abstract factory."""
@@ -213,6 +214,22 @@ class ApiView(MethodView):
 
         return resource
 
+    def _get_resource(
+        self,
+        identifier: TIdentifier,
+        model_class: t.Optional[t.Any] = None
+    ) -> t.Optional[t.Any]:
+        """
+        Returns a resource based on the given identifier or None if not exists.
+
+        Arguments:
+            identifier: A scalar, tuple, or dictionary representing the primary key.
+            model_class (type): A reference to the model class that describes the REST resource.
+        """
+        return self.get_factory().create_resource_manager().get(
+            model_class or self.get_model_class(), identifier
+        )
+
     def get_or_404(
         self,
         identifier: TIdentifier,
@@ -227,9 +244,7 @@ class ApiView(MethodView):
             identifier: A scalar, tuple, or dictionary representing the primary key.
             description (str):
         """
-        resource = self.get_factory().create_resource_manager().get(
-            model_class or self.get_model_class(), identifier
-        )
+        resource = self._get_resource(identifier, model_class or self.get_model_class())
 
         if resource is None:
             abort(404, description=description)

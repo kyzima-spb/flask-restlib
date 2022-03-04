@@ -4,7 +4,7 @@ from copy import copy
 import typing as t
 
 from flask import current_app
-from webargs import fields
+from marshmallow import fields
 from webargs import validate as validators
 from webargs.flaskparser import parser
 
@@ -19,12 +19,14 @@ from .types import (
 __all__ = (
     'AbstractPagination',
     'LimitOffsetPagination',
+    'TPagination',
 )
+
 
 TPagination = t.TypeVar('TPagination', bound='AbstractPagination')
 
 
-class AbstractPagination(t.Generic[TPagination], metaclass=ABCMeta):
+class AbstractPagination(metaclass=ABCMeta):
     # https://habr.com/ru/company/ruvds/blog/513766/
     # https://medium.com/swlh/how-to-implement-cursor-pagination-like-a-pro-513140b65f32
 
@@ -33,8 +35,8 @@ class AbstractPagination(t.Generic[TPagination], metaclass=ABCMeta):
     def __init__(
         self,
         *,
-        default_limit: int = None,
-        limit_param_name: str = None
+        default_limit: t.Optional[int] = None,
+        limit_param_name: t.Optional[str] = None
     ) -> None:
         """
         Arguments:
@@ -71,7 +73,7 @@ class AbstractPagination(t.Generic[TPagination], metaclass=ABCMeta):
                 data_key=self.get_limit_param_name()
             )
         }
-        return parser.parse(schema, location='query')['limit']
+        return int(parser.parse(schema, location='query')['limit'])
 
     def get_limit_param_name(self) -> str:
         """Returns name of the URL parameter that specifies the number of collection items per page."""
@@ -96,9 +98,9 @@ class LimitOffsetPagination(AbstractPagination):
     def __init__(
         self,
         *,
-        default_limit: int = None,
-        limit_param_name: str = None,
-        offset_param_name: str = None
+        default_limit: t.Optional[int] = None,
+        limit_param_name: t.Optional[str] = None,
+        offset_param_name: t.Optional[str] = None
     ) -> None:
         """
         Arguments:
@@ -122,7 +124,7 @@ class LimitOffsetPagination(AbstractPagination):
                 data_key=self.get_offset_param_name()
             )
         }
-        return parser.parse(schema, location='query')['offset']
+        return int(parser.parse(schema, location='query')['offset'])
 
     def get_offset_param_name(self) -> str:
         """
