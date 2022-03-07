@@ -23,7 +23,11 @@ from .core import AbstractFactory
 from .globals import current_restlib, authorization_server
 from .http import THttpCache
 from .oauth2 import save_client
-from .permissions import Permission, TokenHasScope
+from .permissions import (
+    Permission,
+    PublicMethods,
+    TokenHasScope,
+)
 from .schemas import ClientSchema
 from .types import (
     TIdentifier,
@@ -62,7 +66,9 @@ class ApiView(MethodView):
     lookup_names: t.ClassVar[TLookupNames] = ()
     methods_returning_etag: t.ClassVar[set[str]] = {'GET', 'HEAD', 'POST', 'PUT', 'PATCH'}
     model_class: t.Type = None
-    permissions: list[Permission] = []
+    permissions: t.Optional[Permission] = None
+    item_permissions: t.Optional[Permission] = None
+    public_methods: t.Optional[t.Sequence[str]] = None
     schema_class: t.Type = None
 
     def get_factory(self) -> AbstractFactory:
@@ -76,16 +82,25 @@ class ApiView(MethodView):
         Check if the request should be permitted.
         Raises an exception if the request is not permitted.
         """
-        for permission in self.permissions:
-            permission.check_permission(self)
+        if self.public_methods is not None:
+            public_methods = self.public_methods
+        else:
+            public_methods = current_app.config['RESTLIB_PUBLIC_METHODS']
+
+        permissions = PublicMethods(public_methods)
+
+        if self.permissions is not None:
+            permissions |= self.permissions
+
+        permissions.check_permission(self)
 
     def check_resource_permissions(self, resource: typing.Any) -> None:
         """
         Check if the request should be permitted for a given resource.
         Raises an exception if the request is not permitted.
         """
-        for permission in self.permissions:
-            permission.check_resource_permission(self, resource)
+        if self.item_permissions is not None:
+            self.item_permissions.check_permission(self, resource)
 
     def create_queryset(self) -> TQueryAdapter:
         """
@@ -343,7 +358,7 @@ class UpdateView(mixins.UpdateViewMixin, ApiView):
 
 class ClientView(CreateView):
     schema_class = ClientSchema
-    permissions = [TokenHasScope('oauth')]
+    permissions = TokenHasScope('oauth')
 
     def get_model_class(self):
         return authorization_server.OAuth2Client

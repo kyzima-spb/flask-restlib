@@ -346,6 +346,7 @@ class RestLib(t.Generic[TPagination]):
         app.config.setdefault('RESTLIB_URL_PARAM_LOGOUT', 'logout_uri')
         app.config.setdefault('RESTLIB_HTTP_CACHE_DISABLE', False)
         app.config.setdefault('RESTLIB_CONCURRENCY_CONTROL_DISABLE', False)
+        app.config.setdefault('RESTLIB_PUBLIC_METHODS', set())
 
         app.config.setdefault('RESTLIB_ID_FIELD', 'id')
         app.config.setdefault('RESTLIB_CREATED_FIELD', 'created')
