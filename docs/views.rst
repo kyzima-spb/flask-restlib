@@ -45,10 +45,10 @@ lookup_names
         Route: /groups/<int:group_id>/members/<int:student_id>
         URL:   /groups/1/members/3
         """
-        lookup_names = ('task_id', 'student_id')
+        lookup_names = ('group_id', 'student_id')
 
         def put(id):
-            # id == {task_id: 1, student_id: 3}
+            # id == {group_id: 1, student_id: 3}
 
 Не используйте ``lookup_names``, если имена URL-параметров, либо атрибутов модели известны заранее.
 В этом случае вам подойдет стандартный механизм Flask:
@@ -63,7 +63,7 @@ lookup_names
         URL:   /groups/1/members/3
         """
 
-        def put(task_id, student_id):
-            # task_id == 1, student_id == 3
+        def put(group_id, student_id):
+            # group_id == 1, student_id == 3
 
 Если ``lookup_names`` - пустой кортеж, то механизм сопоставления имен отключен.
