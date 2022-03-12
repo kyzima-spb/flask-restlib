@@ -72,17 +72,15 @@ class DestroyMixin:
         return '', 204
 
 
-class ListMixin(t.Generic[TPagination, TSortHandler]):
+class ListBaseMixin(t.Generic[TPagination, TSortHandler]):
     """
     Mixin for getting all resources from the collection.
 
     Attributes:
-        filters:
-            ...
-        pagination_handler: An instance of the paginator.
-        sort_handler: an instance of the sort handler.
+        filters (list):
+        pagination_handler (TPagination): An instance of the paginator.
+        sort_handler (TSortHandler): an instance of the sort handler.
     """
-
     filters = []
     pagination_handler: t.Optional[TPagination] = None
     sort_handler: t.Optional[TSortHandler] = None
@@ -97,24 +95,67 @@ class ListMixin(t.Generic[TPagination, TSortHandler]):
         """Returns an instance of the sort handler."""
         return self.sort_handler
 
+    def filter_queryset(self, q: TQueryAdapter) -> TQueryAdapter:
+        """Applies filters to a queryset and returns a new queryset."""
+        for f in self.filters:
+            q = f.filter(q)
+        return q
+
+    def paginate_queryset(self, q: TQueryAdapter) -> tuple[TQueryAdapter, THttpHeaders]:
+        """Applies pagination to a queryset and returns a new queryset and HTTP headers."""
+        if current_app.config['RESTLIB_PAGINATION_ENABLED']:
+            pagination = self.get_pagination()
+            return pagination(q, request.url)
+        return q, []
+
+    def sort_queryset(self, q: TQueryAdapter) -> TQueryAdapter:
+        """Applies a sort to a queryset and returns a new queryset."""
+        if current_app.config['RESTLIB_SORTING_ENABLED']:
+            sort_handler = self.get_sort()
+            if sort_handler is not None:
+                q = sort_handler.execute(q)
+        return q
+
+
+class ListMixin(ListBaseMixin[TPagination, TSortHandler]):
     def list(self) -> ResponseReturnValue:
         q: TQueryAdapter = self.create_queryset() # type: ignore
         headers: THttpHeaders = []
 
-        for f in self.filters:
-            q = f.filter(q)
-
-        if current_app.config['RESTLIB_SORTING_ENABLED']:
-            sort_handler = self.get_sort()
-            if sort_handler is not None:
-                sort_handler.execute(q)
-
-        if current_app.config['RESTLIB_PAGINATION_ENABLED']:
-            pagination = self.get_pagination()
-            q, pagination_headers = pagination(q, request.url)
-            headers.extend(pagination_headers)
+        q = self.filter_queryset(q)
+        q = self.sort_queryset(q)
+        q, pagination_headers = self.paginate_queryset(q)
+        headers.extend(pagination_headers)
 
         return self.create_schema(many=True).dump(q), headers # type: ignore
+
+
+class ChildListMixin(ListBaseMixin[TPagination, TSortHandler]):
+    model_child_property: t.Optional[str] = None
+
+    def create_child_queryset(self, resource: t.Any) -> TQueryAdapter:
+        """
+        Creates and returns a queryset for retrieving child resources from persistent storage.
+        """
+        if self.model_child_property is not None:
+            factory = self.get_factory()  # type: ignore
+            return factory.create_query_adapter(
+                getattr(resource, self.model_child_property)
+            )
+        raise NotImplementedError
+
+    def list(self, identifier: TIdentifier) -> ResponseReturnValue:
+        resource = self.get_or_404(identifier)  # type: ignore
+
+        q: TQueryAdapter = self.create_child_queryset(resource)  # type: ignore
+        headers: THttpHeaders = []
+
+        q = self.filter_queryset(q)
+        q = self.sort_queryset(q)
+        q, pagination_headers = self.paginate_queryset(q)
+        headers.extend(pagination_headers)
+
+        return self.create_schema(many=True).dump(q), headers  # type: ignore
 
 
 class RetrieveMixin:
@@ -157,6 +198,13 @@ class DestroyViewMixin(DestroyMixin):
 class ListViewMixin(ListMixin[TPagination, TSortHandler]):
     def get(self) -> ResponseReturnValue:
         return self.list()
+
+
+class ChildListViewMixin(ChildListMixin[TPagination, TSortHandler]):
+    lookup_names: t.ClassVar[TLookupNames] = ('id',)
+
+    def get(self, id: TIdentifier) -> ResponseReturnValue:
+        return self.list(id)
 
 
 class RetrieveViewMixin(RetrieveMixin):

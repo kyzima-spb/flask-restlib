@@ -29,6 +29,8 @@ from .permissions import (
     TokenHasScope,
 )
 from .schemas import ClientSchema
+from .pagination import TPagination
+from .sorting import TSortHandler
 from .types import (
     TIdentifier,
     TLookupNames,
@@ -40,7 +42,12 @@ from .types import (
 
 __all__ = (
     'ApiView',
-    'CreateView', 'DestroyView', 'ListView', 'RetrieveView', 'UpdateView',
+    'ChildListView',
+    'CreateView',
+    'DestroyView',
+    'ListView',
+    'RetrieveView',
+    'UpdateView',
 )
 
 
@@ -104,7 +111,7 @@ class ApiView(MethodView):
 
     def create_queryset(self) -> TQueryAdapter:
         """
-        Creates and returns a native queryset for retrieving resources from persistent storage.
+        Creates and returns a queryset for retrieving resources from persistent storage.
         """
         factory = self.get_factory()
 
@@ -135,9 +142,13 @@ class ApiView(MethodView):
             return '', 304
 
         if self.lookup_names:
-            kwargs['id'] = OrderedDict(
-                (name, kwargs.pop(name)) for name in self.lookup_names if name in kwargs
-            )
+            if len(self.lookup_names) > 1:
+                kwargs['id'] = OrderedDict(
+                    (name, kwargs.pop(name)) for name in self.lookup_names
+                )
+            else:
+                name = self.lookup_names[0]
+                kwargs['id'] = kwargs.pop(name)
 
         resp = self.normalize_response_value(
             super().dispatch_request(*args, **kwargs)
@@ -344,7 +355,17 @@ class DestroyView(mixins.DestroyViewMixin, ApiView):
     pass
 
 
-class ListView(mixins.ListViewMixin, ApiView):
+class ListView(
+    mixins.ListViewMixin[TPagination, TSortHandler],
+    ApiView
+):
+    pass
+
+
+class ChildListView(
+    mixins.ChildListViewMixin[TPagination, TSortHandler],
+    ApiView
+):
     pass
 
 
