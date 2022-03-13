@@ -32,7 +32,6 @@ from .types import (
     ErrorResponse,
     CatchExceptionCallable,
     TFactory,
-    TFilterSchema,
     TFunc,
     TResourceManager,
     TQueryAdapter,
@@ -42,77 +41,10 @@ from .types import (
 
 __all__ = (
     'AbstractFactory',
-    'AbstractUrlQueryFilter',
 )
 
 
 DEFAULT_HTTP_ERROR_STATUS = 400
-
-
-class AbstractUrlQueryFilter(metaclass=ABCMeta):
-    """
-    The filter uses a URL query string and schema to collect and validate input data.
-
-    Filtering your results use a unique query parameter for each of your fields.
-
-    For example, to filter users based on their username:
-    GET /users?username=admin
-
-    If you would like to add full text search to your API,
-    use a q query parameter, for example:
-    GET /users?q=Admin
-    """
-
-    def __init__(self, filter_schema: TFilterSchema) -> None:
-        """
-        Arguments:
-            filter_schema (dict|type|Schema):
-                Dictionary, or a Schema instance or a Schema subclass for validating input data.
-        """
-        self._filter_schema = filter_schema
-
-    @abstractmethod
-    def __call__(self, q: TQueryAdapter, input_data: dict) -> TQueryAdapter:
-        """
-        Applies the current filter to the given queryset and returns new queryset.
-
-        Arguments:
-            q: current queryset.
-            input_data (dict): the input used for filtering.
-        """
-
-    def filter(self, q: TQueryAdapter) -> TQueryAdapter:
-        """
-        Applies the current filter to the given queryset and returns new queryset.
-
-        Arguments:
-            q: current queryset.
-        """
-        return self(q, self.get_input_data())
-
-    def get_input_data(self) -> dict:
-        """Returns the input used for filtering."""
-        return parser.parse(self.get_schema(), location='query')
-
-    def get_schema(self) -> Schema:
-        """Returns an instance of the schema for validating the input."""
-        schema = self._filter_schema
-
-        if isinstance(schema, Schema):
-            schema.partial = True
-            return schema
-
-        if isinstance(schema, type) and issubclass(schema, Schema):
-            self._filter_schema = schema(partial=True)
-        elif isinstance(schema, dict):
-            self._filter_schema = Schema.from_dict(schema)(partial=True)
-        else:
-            raise ValueError(
-                f'`{self.__class__}.filter_schema` can be a dictionary, '
-                'or a Schema instance or a Schema subclass.'
-            )
-
-        return self._filter_schema
 
 
 class AbstractFactory(metaclass=ABCMeta):

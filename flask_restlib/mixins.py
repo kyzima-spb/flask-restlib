@@ -16,6 +16,7 @@ from webargs.flaskparser import parser
 from werkzeug.datastructures import Headers
 
 from .globals import current_restlib
+from .filters import TFilter
 from .pagination import TPagination
 from .sorting import TSortHandler
 from .types import (
@@ -72,7 +73,7 @@ class DestroyMixin:
         return '', 204
 
 
-class ListBaseMixin(t.Generic[TPagination, TSortHandler]):
+class ListBaseMixin(t.Generic[TFilter, TSortHandler, TPagination]):
     """
     Mixin for getting all resources from the collection.
 
@@ -81,7 +82,7 @@ class ListBaseMixin(t.Generic[TPagination, TSortHandler]):
         pagination_handler (TPagination): An instance of the paginator.
         sort_handler (TSortHandler): an instance of the sort handler.
     """
-    filters = []
+    filters: t.List[TFilter] = []
     pagination_handler: t.Optional[TPagination] = None
     sort_handler: t.Optional[TSortHandler] = None
 
@@ -117,7 +118,9 @@ class ListBaseMixin(t.Generic[TPagination, TSortHandler]):
         return q
 
 
-class ListMixin(ListBaseMixin[TPagination, TSortHandler]):
+class ListMixin(
+    ListBaseMixin[TFilter, TSortHandler, TPagination]
+):
     def list(self) -> ResponseReturnValue:
         q: TQueryAdapter = self.create_queryset() # type: ignore
         headers: THttpHeaders = []
@@ -130,7 +133,9 @@ class ListMixin(ListBaseMixin[TPagination, TSortHandler]):
         return self.create_schema(many=True).dump(q), headers # type: ignore
 
 
-class ChildListMixin(ListBaseMixin[TPagination, TSortHandler]):
+class ChildListMixin(
+    ListBaseMixin[TFilter, TSortHandler, TPagination]
+):
     model_child_property: t.Optional[str] = None
 
     def create_child_queryset(self, resource: t.Any) -> TQueryAdapter:
@@ -195,12 +200,16 @@ class DestroyViewMixin(DestroyMixin):
         return self.destroy(id)
 
 
-class ListViewMixin(ListMixin[TPagination, TSortHandler]):
+class ListViewMixin(
+    ListMixin[TFilter, TSortHandler, TPagination]
+):
     def get(self) -> ResponseReturnValue:
         return self.list()
 
 
-class ChildListViewMixin(ChildListMixin[TPagination, TSortHandler]):
+class ChildListViewMixin(
+    ChildListMixin[TFilter, TSortHandler, TPagination]
+):
     lookup_names: t.ClassVar[TLookupNames] = ('id',)
 
     def get(self, id: TIdentifier) -> ResponseReturnValue:

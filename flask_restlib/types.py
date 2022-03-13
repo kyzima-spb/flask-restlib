@@ -59,8 +59,6 @@ TQueryAdapter = t.TypeVar('TQueryAdapter', bound='AbstractQueryAdapter')
 TResourceManager = t.TypeVar('TResourceManager', bound='AbstractResourceManager')
 TSchema = t.TypeVar('TSchema', bound=SchemaABC)
 
-TFilterSchema = t.Union[dict[str, t.Union[Field, type]], t.Type[TSchema], TSchema]
-
 # AuthorizationCodeType = t.TypeVar('AuthorizationCodeType', bound=_AuthorizationCodeMixin)
 # ClientType = t.TypeVar('ClientType', bound=_ClientMixin)
 # TokenType = t.TypeVar('TokenType', bound='TokenMixin')

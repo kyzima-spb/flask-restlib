@@ -29,6 +29,7 @@ from .permissions import (
     TokenHasScope,
 )
 from .schemas import ClientSchema
+from .filters import TFilter
 from .pagination import TPagination
 from .sorting import TSortHandler
 from .types import (
@@ -356,14 +357,14 @@ class DestroyView(mixins.DestroyViewMixin, ApiView):
 
 
 class ListView(
-    mixins.ListViewMixin[TPagination, TSortHandler],
+    mixins.ListViewMixin[TFilter, TSortHandler, TPagination],
     ApiView
 ):
     pass
 
 
 class ChildListView(
-    mixins.ChildListViewMixin[TPagination, TSortHandler],
+    mixins.ChildListViewMixin[TFilter, TSortHandler, TPagination],
     ApiView
 ):
     pass
