@@ -49,7 +49,6 @@ TView = t.Union[t.Callable, View]
 
 # Uses for argument filter_callback in AbstractQueryAdapter.filter() method.
 TQueryFilter = t.Callable[[t.Any], t.Any]
-TQueryExpression = t.TypeVar('TQueryExpression', bound='AbstractQueryExpression')
 
 THttpHeader = tuple[str, str]
 THttpHeaders = list[THttpHeader]

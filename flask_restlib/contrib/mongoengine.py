@@ -32,7 +32,6 @@ from ..schemas import RestlibMixin
 from ..types import (
     TIdentifier,
     TQueryAdapter,
-    TQueryExpression,
     TResourceManager,
     TSchema,
 )
@@ -151,53 +150,53 @@ class MongoAutoSchema(_MongoEngineSchema):
 # todo: ORM Adapter
 
 
-class MongoEngineQueryExpression(AbstractQueryExpression):
-    def __call__(self, q):
+class MongoEngineQueryExpression(AbstractQueryExpression[BaseQuerySet]):
+    def __call__(self, q: BaseQuerySet) -> BaseQuerySet:
         return q.filter(self._native_expression)
 
-    def __and__(self, other) -> TQueryExpression:
+    def __and__(self, other) -> MongoEngineQueryExpression:
         return self.__class__(self._native_expression & self.to_native(other))
 
-    def __or__(self, other) -> TQueryExpression:
+    def __or__(self, other) -> MongoEngineQueryExpression:
         return self.__class__(self._native_expression | self.to_native(other))
 
-    def __eq__(self, other: t.Any) -> TQueryExpression:
+    def __eq__(self, other: t.Any) -> MongoEngineQueryExpression:  # type: ignore
         if isinstance(self._native_expression, me.fields.BaseField):
             return self._make_expression(self._native_expression.name, other)
         return NotImplemented
 
-    def __ne__(self, other: t.Any) -> TQueryExpression:
+    def __ne__(self, other: t.Any) -> MongoEngineQueryExpression:  # type: ignore
         if isinstance(self._native_expression, me.fields.BaseField):
             return self._make_expression(f'{self._native_expression.name}__ne', other)
         return NotImplemented
 
-    def __lt__(self, other: t.Any) -> TQueryExpression:
+    def __lt__(self, other: t.Any) -> MongoEngineQueryExpression:
         if isinstance(self._native_expression, me.fields.BaseField):
             return self._make_expression(f'{self._native_expression.name}__lt', other)
         return NotImplemented
 
-    def __le__(self, other: t.Any) -> TQueryExpression:
+    def __le__(self, other: t.Any) -> MongoEngineQueryExpression:
         if isinstance(self._native_expression, me.fields.BaseField):
             return self._make_expression(f'{self._native_expression.name}__lte', other)
         return NotImplemented
 
-    def __gt__(self, other: t.Any) -> TQueryExpression:
+    def __gt__(self, other: t.Any) -> MongoEngineQueryExpression:
         if isinstance(self._native_expression, me.fields.BaseField):
             return self._make_expression(f'{self._native_expression.name}__gt', other)
         return NotImplemented
 
-    def __ge__(self, other: t.Any) -> TQueryExpression:
+    def __ge__(self, other: t.Any) -> MongoEngineQueryExpression:
         if isinstance(self._native_expression, me.fields.BaseField):
             return self._make_expression(f'{self._native_expression.name}__gte', other)
         return NotImplemented
 
-    def _make_expression(self, argument_name, value):
+    def _make_expression(self, argument_name: str, value: t.Any) -> MongoEngineQueryExpression:
         return self.__class__(
             me.Q(**{argument_name: self.to_native(value)})
         )
 
 
-class MongoQueryAdapter(AbstractQueryAdapter):
+class MongoQueryAdapter(AbstractQueryAdapter[BaseQuerySet]):
     __slots__ = ()
 
     def __init__(self, base_query: t.Any) -> None:
@@ -214,11 +213,11 @@ class MongoQueryAdapter(AbstractQueryAdapter):
     def exists(self) -> bool:
         return bool(self.make_query().first())
 
-    def filter_by(self: TQueryAdapter, **kwargs: t.Any) -> TQueryAdapter:
+    def filter_by(self, **kwargs: t.Any) -> MongoQueryAdapter:
         self._base_query = self._base_query.filter(**kwargs)
         return self
 
-    def make_query(self) -> t.Any:
+    def make_query(self) -> BaseQuerySet:
         q = self._base_query
 
         if self._offset is None:
@@ -239,21 +238,21 @@ class MongoQueryAdapter(AbstractQueryAdapter):
         return q
 
     def order_by(
-        self: TQueryAdapter,
+        self,
         column: t.Union[str, tuple[str, bool]],
-        *columns: tuple[t.Union[str, tuple[str, bool]]]
-    ) -> TQueryAdapter:
-        columns = []
+        *columns: t.Union[str, tuple[str, bool]]
+    ) -> MongoQueryAdapter:
+        args = []
 
         for param in (column, *columns):
             if isinstance(param, str):
-                columns.append(param)
+                args.append(param)
             else:
                 name, desc = param
                 order = '-' if desc else '+'
-                columns.append(f'{order}{name}')
+                args.append(f'{order}{name}')
 
-        self._order_by.append(tuple(columns))
+        self._order_by.append(tuple(args))
 
         return self
 

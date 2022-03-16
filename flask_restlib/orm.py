@@ -8,10 +8,9 @@ from . import exceptions
 from .types import (
     TException,
     TIdentifier,
-    TQueryExpression,
     TQueryFilter,
     TResourceManager,
-    TQueryAdapter,
+    # TQueryAdapter,
 )
 
 
@@ -22,7 +21,13 @@ __all__ = (
 )
 
 
-class AbstractQueryExpression(metaclass=ABCMeta):
+_TModel = t.TypeVar('_TModel')
+TQueryExpression = t.TypeVar('TQueryExpression', bound='AbstractQueryExpression')
+TQueryAdapter = t.TypeVar('TQueryAdapter', bound='AbstractQueryAdapter')
+TNativeQuery = t.TypeVar('TNativeQuery')
+
+
+class AbstractQueryExpression(t.Generic[TNativeQuery], metaclass=ABCMeta):
     """
     An adapter represent that is:
 
@@ -50,7 +55,7 @@ class AbstractQueryExpression(metaclass=ABCMeta):
         return str(self._native_expression)
 
     @abstractmethod
-    def __call__(self, q):
+    def __call__(self, q: TNativeQuery) -> TNativeQuery:
         """
         Applies the current filter to the given queryset and returns the native queryset.
 
@@ -59,44 +64,48 @@ class AbstractQueryExpression(metaclass=ABCMeta):
         """
 
     @abstractmethod
-    def __and__(self, other: t.Any) -> TQueryExpression:
+    def __and__(self: TQueryExpression, other: t.Any) -> TQueryExpression:
         """Implement the ``&`` operator."""
 
     @abstractmethod
-    def __or__(self, other: t.Any) -> TQueryExpression:
+    def __or__(self: TQueryExpression, other: t.Any) -> TQueryExpression:
         """Implement the ``|`` operator."""
 
     @abstractmethod
-    def __eq__(self, other: t.Any) -> TQueryExpression:
+    def __eq__(self: TQueryExpression, other: t.Any) -> TQueryExpression:  # type: ignore
         """Implement the ``==`` operator."""
 
     @abstractmethod
-    def __ne__(self, other: t.Any) -> TQueryExpression:
+    def __ne__(self: TQueryExpression, other: t.Any) -> TQueryExpression:  # type: ignore
         """Implement the ``!=`` operator."""
 
     @abstractmethod
-    def __lt__(self, other: t.Any) -> TQueryExpression:
+    def __lt__(self: TQueryExpression, other: t.Any) -> TQueryExpression:
         """Implement the ``<`` operator."""
 
     @abstractmethod
-    def __le__(self, other: t.Any) -> TQueryExpression:
+    def __le__(self: TQueryExpression, other: t.Any) -> TQueryExpression:
         """Implement the ``<=`` operator."""
 
     @abstractmethod
-    def __gt__(self, other: t.Any) -> TQueryExpression:
+    def __gt__(self: TQueryExpression, other: t.Any) -> TQueryExpression:
         """Implement the ``>`` operator."""
 
     @abstractmethod
-    def __ge__(self, other: t.Any) -> TQueryExpression:
+    def __ge__(self: TQueryExpression, other: t.Any) -> TQueryExpression:
         """Implement the ``>=`` operator."""
 
-    def to_native(self, expr: t.Any) -> t.Any:
+    def to_native(self, expr: t.Any) -> TNativeQuery:
+        """Retrieves a native expression from the adapter and returns it."""
         if isinstance(expr, self.__class__):
             return expr._native_expression
         return expr
 
 
-class AbstractQueryAdapter(metaclass=ABCMeta):
+class AbstractQueryAdapter(
+    t.Generic[TNativeQuery],
+    metaclass=ABCMeta
+):
     __slots__ = (
         '_base_query',
         '_limit',
@@ -117,7 +126,7 @@ class AbstractQueryAdapter(metaclass=ABCMeta):
         self._offset: t.Optional[int] = None
         self._order_by: list[t.Iterable] = [] # fixme: уточнить тип
 
-    def __iter__(self):
+    def __iter__(self) -> t.Iterator[t.Any]:
         yield from self.all()
 
     @abstractmethod
@@ -156,7 +165,7 @@ class AbstractQueryAdapter(metaclass=ABCMeta):
         return self
 
     @abstractmethod
-    def make_query(self) -> t.Any:
+    def make_query(self) -> TNativeQuery:
         """Creates and returns a native query object."""
 
     def one(self) -> t.Any:
@@ -200,7 +209,7 @@ class AbstractQueryAdapter(metaclass=ABCMeta):
     def order_by(
         self: TQueryAdapter,
         column: t.Union[str, tuple[str, bool]],
-        *columns: tuple[t.Union[str, tuple[str, bool]]]
+        *columns: t.Union[str, tuple[str, bool]]
     ) -> TQueryAdapter:
         """Applies sorting by attribute."""
         self._order_by.append((column, *columns))

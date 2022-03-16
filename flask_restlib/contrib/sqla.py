@@ -39,19 +39,23 @@ from ..schemas import RestlibMixin
 from ..types import (
     TIdentifier,
     TQueryAdapter,
-    TQueryExpression,
     TResourceManager,
     TSchema,
 )
 
 
 __all__ = (
-    'OAuth2ClientMixin', 'OAuth2TokenMixin', 'OAuth2AuthorizationCodeMixin',
-    'QueryAdapter', 'ResourceManager', 'SQLAFactory',
+    'OAuth2ClientMixin',
+    'OAuth2TokenMixin',
+    'OAuth2AuthorizationCodeMixin',
+    'SQLAQueryAdapter',
+    'ResourceManager',
+    'SQLAFactory',
 )
 
 
-def create_fk_column(model_class) -> sa.ForeignKey:
+def create_fk_column(model_class: t.Type[t.Any]) -> sa.ForeignKey:
+    """Creates and returns a column for the foreign key related to the given model."""
     pk = get_primary_keys(model_class)
 
     if len(pk) > 1:
@@ -62,27 +66,29 @@ def create_fk_column(model_class) -> sa.ForeignKey:
 
 
 @lru_cache
-def create_client_reference_mixin(client_model):
+def create_client_reference_mixin(client_model: t.Type[t.Any]) -> t.Type[t.Any]:
+    """Creates and returns a mixin with a reference to the OAuth2 client model."""
     class _ClientRelationshipMixin:
         @declared_attr
-        def client_id(cls):
+        def client_id(cls) -> sa.Column:
             return sa.Column(create_fk_column(client_model), nullable=False)
 
         @declared_attr
-        def client(cls):
+        def client(cls) -> sa.orm.RelationshipProperty:
             return relationship(client_model)
     return _ClientRelationshipMixin
 
 
 @lru_cache
-def create_user_reference_mixin(user_model):
+def create_user_reference_mixin(user_model: t.Type[t.Any]) -> t.Type[t.Any]:
+    """Creates and returns a mixin with a reference to the user model."""
     class _UserReferenceMixin:
         @declared_attr
-        def user_id(cls):
+        def user_id(cls) -> sa.Column:
             return sa.Column(create_fk_column(user_model), nullable=False)
 
         @declared_attr
-        def user(cls):
+        def user(cls) -> sa.orm.RelationshipProperty:
             return relationship(user_model)
     return _UserReferenceMixin
 
@@ -146,39 +152,46 @@ class SQLAlchemyAutoSchema(_SQLAlchemyAutoSchema):
 
 # todo: ORM Adapter
 
-class SQLAQueryExpression(AbstractQueryExpression):
-    def __call__(self, q):
+
+class SQLAQueryExpression(AbstractQueryExpression[Query]):
+    def __call__(self, q: Query) -> Query:
         return q.filter(self._native_expression)
 
-    def __and__(self, other) -> TQueryExpression:
+    def __and__(self, other: t.Any) -> SQLAQueryExpression:
         return self.__class__(self._native_expression & self.to_native(other))
 
-    def __or__(self, other) -> TQueryExpression:
+    def __or__(self, other: t.Any) -> SQLAQueryExpression:
         return self.__class__(self._native_expression | self.to_native(other))
 
-    def __eq__(self, other: t.Any) -> TQueryExpression:
+    def __eq__(self, other: t.Any) -> SQLAQueryExpression:  # type: ignore
         return self.__class__(self._native_expression == self.to_native(other))
 
-    def __ne__(self, other: t.Any) -> TQueryExpression:
+    def __ne__(self, other: t.Any) -> SQLAQueryExpression:  # type: ignore
         return self.__class__(self._native_expression != self.to_native(other))
 
-    def __lt__(self, other: t.Any) -> TQueryExpression:
+    def __lt__(self, other: t.Any) -> SQLAQueryExpression:
         return self.__class__(self._native_expression < self.to_native(other))
 
-    def __le__(self, other: t.Any) -> TQueryExpression:
+    def __le__(self, other: t.Any) -> SQLAQueryExpression:
         return self.__class__(self._native_expression <= self.to_native(other))
 
-    def __gt__(self, other: t.Any) -> TQueryExpression:
+    def __gt__(self, other: t.Any) -> SQLAQueryExpression:
         return self.__class__(self._native_expression > self.to_native(other))
 
-    def __ge__(self, other: t.Any) -> TQueryExpression:
+    def __ge__(self, other: t.Any) -> SQLAQueryExpression:
         return self.__class__(self._native_expression >= self.to_native(other))
 
+_TModel = t.TypeVar('_TModel')
 
-class QueryAdapter(AbstractQueryAdapter):
+class SQLAQueryAdapter(AbstractQueryAdapter[Query]):
     __slots__ = ('session',)
 
-    def __init__(self, base_query, *, session):
+    def __init__(
+        self,
+        base_query: t.Any,
+        *,
+        session
+    ) -> None:
         if not isinstance(base_query, Query):
             base_query = session.query(base_query)
 
@@ -195,12 +208,11 @@ class QueryAdapter(AbstractQueryAdapter):
         q = self.make_query().exists()
         return self.session.query(q).scalar()
 
-    def filter_by(self: TQueryAdapter, **kwargs: t.Any) -> TQueryAdapter:
-        # print(get_query_entities(self._base_query))
+    def filter_by(self, **kwargs: t.Any) -> SQLAQueryAdapter:
         self._base_query = self._base_query.filter_by(**kwargs)
         return self
 
-    def make_query(self) -> t.Any:
+    def make_query(self) -> Query:
         q = self._base_query
 
         for columns in self._order_by:
@@ -215,11 +227,11 @@ class QueryAdapter(AbstractQueryAdapter):
         return q
 
     def order_by(
-        self: TQueryAdapter,
+        self,
         column: t.Union[str, tuple[str, bool]],
-        *columns: tuple[t.Union[str, tuple[str, bool]]]
-    ) -> TQueryAdapter:
-        columns = []
+        *columns: t.Union[str, tuple[str, bool]]
+    ) -> SQLAQueryAdapter:
+        args = []
 
         for param in (column, *columns):
             if isinstance(param, str):
@@ -229,14 +241,14 @@ class QueryAdapter(AbstractQueryAdapter):
                 name, desc = param
                 order = sa.desc if desc else sa.asc
 
-            columns.append(
+            args.append(
                 order(sa.text(name))
             )
 
-        self._order_by.append(tuple(columns))
+        self._order_by.append(tuple(args))
 
         return self
-
+reveal_type(SQLAQueryAdapter)
 
 class ResourceManager(AbstractResourceManager):
     def __init__(self, session) -> None:
@@ -294,7 +306,7 @@ class SQLAFactory(AbstractFactory):
         return ext.db.session
 
     def create_query_adapter(self, base_query: t.Any) -> TQueryAdapter:
-        return QueryAdapter(base_query, session=self.session)
+        return SQLAQueryAdapter(base_query, session=self.session)
 
     def create_query_expression(self, column):
         return SQLAQueryExpression(column)
