@@ -15,7 +15,11 @@ from flask_marshmallow.sqla import (
 )
 import sqlalchemy as sa
 from sqlalchemy.ext.declarative import declared_attr
-from sqlalchemy.orm import Query, relationship
+from sqlalchemy.orm import (
+    Query,
+    relationship,
+    Session,
+)
 from sqlalchemy_utils.functions import (
     get_declarative_base,
     get_primary_keys
@@ -27,7 +31,8 @@ from ..core import AbstractFactory
 from ..mixins import (
     AuthorizationCodeMixin,
     ClientMixin,
-    TokenMixin
+    TokenMixin,
+    UserMixin,
 )
 from ..oauth2 import generate_client_id
 from ..orm import (
@@ -38,9 +43,6 @@ from ..orm import (
 from ..schemas import RestlibMixin
 from ..types import (
     TIdentifier,
-    TQueryAdapter,
-    TResourceManager,
-    TSchema,
 )
 
 
@@ -49,9 +51,12 @@ __all__ = (
     'OAuth2TokenMixin',
     'OAuth2AuthorizationCodeMixin',
     'SQLAQueryAdapter',
-    'ResourceManager',
+    'SQLAResourceManager',
     'SQLAFactory',
 )
+
+
+TModel = t.TypeVar('TModel')
 
 
 def create_fk_column(model_class: t.Type[t.Any]) -> sa.ForeignKey:
@@ -66,7 +71,7 @@ def create_fk_column(model_class: t.Type[t.Any]) -> sa.ForeignKey:
 
 
 @lru_cache
-def create_client_reference_mixin(client_model: t.Type[t.Any]) -> t.Type[t.Any]:
+def create_client_reference_mixin(client_model: t.Type[ClientMixin]) -> t.Type[t.Any]:
     """Creates and returns a mixin with a reference to the OAuth2 client model."""
     class _ClientRelationshipMixin:
         @declared_attr
@@ -80,7 +85,7 @@ def create_client_reference_mixin(client_model: t.Type[t.Any]) -> t.Type[t.Any]:
 
 
 @lru_cache
-def create_user_reference_mixin(user_model: t.Type[t.Any]) -> t.Type[t.Any]:
+def create_user_reference_mixin(user_model: t.Type[UserMixin]) -> t.Type:
     """Creates and returns a mixin with a reference to the user model."""
     class _UserReferenceMixin:
         @declared_attr
@@ -181,22 +186,23 @@ class SQLAQueryExpression(AbstractQueryExpression[Query]):
     def __ge__(self, other: t.Any) -> SQLAQueryExpression:
         return self.__class__(self._native_expression >= self.to_native(other))
 
-_TModel = t.TypeVar('_TModel')
+# _TNativeQuery = t.Union[t.Type[_TModel], Query]
 
 class SQLAQueryAdapter(AbstractQueryAdapter[Query]):
     __slots__ = ('session',)
 
     def __init__(
         self,
-        base_query: t.Any,
+        base_query: t.Union[Query, SQLAQueryAdapter],
         *,
-        session
+        session: Session
     ) -> None:
-        if not isinstance(base_query, Query):
-            base_query = session.query(base_query)
-
-        super().__init__(base_query)
         self.session = session
+        super().__init__(base_query)
+        # from sqlalchemy.ext.declarative import declarative_base
+        # Base = declarative_base()
+        # SQLAQueryAdapter(Base, session=None)
+        # reveal_type(self._base_query)
 
     def all(self) -> list:
         return self.make_query().all()
@@ -248,10 +254,15 @@ class SQLAQueryAdapter(AbstractQueryAdapter[Query]):
         self._order_by.append(tuple(args))
 
         return self
-reveal_type(SQLAQueryAdapter)
 
-class ResourceManager(AbstractResourceManager):
-    def __init__(self, session) -> None:
+    def prepare_query(self, base_query: Query) -> Query:
+        if isinstance(base_query, Query):
+            return base_query
+        return self.session.query(base_query)
+
+
+class SQLAResourceManager(AbstractResourceManager[TModel]):
+    def __init__(self, session: Session) -> None:
         self.session = session
 
     def commit(self) -> None:
@@ -259,23 +270,23 @@ class ResourceManager(AbstractResourceManager):
 
     def create(
         self,
-        model_class: t.Any,
+        model_class: t.Type[TModel],
         data: t.Union[dict, list[dict]]
-    ) -> t.Any:
+    ) -> t.Union[TModel, list[TModel]]:
         if isinstance(data, dict):
             resource = model_class(**data)
             self.session.add(resource)
             return resource
         self.session.bulk_insert_mappings(model_class, data)
 
-    def delete(self, resource: t.Any) -> None:
+    def delete(self, resource: TModel) -> None:
         self.session.delete(resource)
 
     def get(
         self,
-        model_class: t.Type[t.Any],
+        model_class: t.Type[TModel],
         identifier: TIdentifier
-    ) -> t.Optional[t.Any]:
+    ) -> t.Optional[TModel]:
         return self.session.query(model_class).get(identifier)
 
     def rollback(self) -> None:
@@ -283,18 +294,28 @@ class ResourceManager(AbstractResourceManager):
 
     def update(
         self,
-        resource: t.Any,
+        resource: TModel,
         attributes: dict
-    ) -> t.Any:
+    ) -> TModel:
         self.populate_obj(resource, attributes)
         return resource
 
 
-class SQLAFactory(AbstractFactory):
-    def __init__(self, session=None):
+class SQLAFactory(
+    AbstractFactory[
+        SQLAQueryExpression,
+        SQLAQueryAdapter,
+        SQLAResourceManager,
+        SQLAlchemySchema,
+        SQLAlchemySchemaOpts,
+        TModel
+    ],
+    t.Generic[TModel]
+):
+    def __init__(self, session: t.Optional[Session] = None) -> None:
         self.session = session or LocalProxy(lambda: self.get_session())
 
-    def get_session(self):
+    def get_session(self) -> Session:
         ext = current_app.extensions.get('sqlalchemy')
 
         if ext is None:
@@ -305,16 +326,16 @@ class SQLAFactory(AbstractFactory):
 
         return ext.db.session
 
-    def create_query_adapter(self, base_query: t.Any) -> TQueryAdapter:
+    def create_query_adapter(self, base_query: t.Any) -> SQLAQueryAdapter:
         return SQLAQueryAdapter(base_query, session=self.session)
 
-    def create_query_expression(self, column):
-        return SQLAQueryExpression(column)
+    def create_query_expression(self, expr: t.Any) -> SQLAQueryExpression:
+        return SQLAQueryExpression(expr)
 
-    def create_resource_manager(self) -> TResourceManager:
-        return ResourceManager(self.session)
+    def create_resource_manager(self) -> SQLAResourceManager[TModel]:
+        return SQLAResourceManager(self.session)
 
-    def create_schema(self, model_class) -> t.Type[TSchema]:
+    def create_schema(self, model_class: t.Type[TModel]) -> t.Type[SQLAlchemyAutoSchema]:
         class Meta:
             model = model_class
 
@@ -323,49 +344,57 @@ class SQLAFactory(AbstractFactory):
 
         return type(name, bases, {'Meta': Meta})
 
-    def get_auto_schema_class(self) -> t.Type[TSchema]:
+    def get_auto_schema_class(self) -> t.Type[SQLAlchemyAutoSchema]:
         return SQLAlchemyAutoSchema
 
-    def get_auto_schema_options_class(self):
+    def get_auto_schema_options_class(self) -> t.Type[SQLAlchemyAutoSchemaOpts]:
         return SQLAlchemyAutoSchemaOpts
 
-    def get_schema_class(self) -> t.Type[TSchema]:
+    def get_schema_class(self) -> t.Type[SQLAlchemySchema]:
         return SQLAlchemySchema
 
-    def get_schema_options_class(self):
+    def get_schema_options_class(self) -> t.Type[SQLAlchemySchemaOpts]:
         return SQLAlchemySchemaOpts
 
-    def create_client_model(self, user_model):
+    def create_client_model(self, user_model: t.Type[UserMixin]) -> t.Type[ClientMixin]:
         return type(
             'OAuth2Client',
             (
-                create_user_reference_mixin(user_model),
+                create_user_reference_mixin(user_model),  # type: ignore
                 OAuth2ClientMixin,
-                get_declarative_base(user_model),
+                get_declarative_base(user_model),  # type: ignore
             ),
             {}
         )
 
-    def create_token_model(self, user_model, client_model):
+    def create_token_model(
+        self,
+        user_model: t.Type[UserMixin],
+        client_model: t.Type[ClientMixin]
+    ) -> t.Type[TokenMixin]:
         return type(
             'OAuth2Token',
             (
-                create_user_reference_mixin(user_model),
-                create_client_reference_mixin(client_model),
+                create_user_reference_mixin(user_model),  # type: ignore
+                create_client_reference_mixin(client_model),  # type: ignore
                 OAuth2TokenMixin,
-                get_declarative_base(user_model),
+                get_declarative_base(user_model),  # type: ignore
             ),
             {}
         )
 
-    def create_authorization_code_model(self, user_model, client_model):
+    def create_authorization_code_model(
+        self,
+        user_model: t.Type[UserMixin],
+        client_model: t.Type[ClientMixin]
+    ) -> t.Type[AuthorizationCodeMixin]:
         return type(
             'OAuth2Code',
             (
-                create_user_reference_mixin(user_model),
-                create_client_reference_mixin(client_model),
+                create_user_reference_mixin(user_model),  # type: ignore
+                create_client_reference_mixin(client_model),  # type: ignore
                 OAuth2AuthorizationCodeMixin,
-                get_declarative_base(user_model),
+                get_declarative_base(user_model),  # type: ignore
             ),
             {}
         )

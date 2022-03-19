@@ -57,8 +57,3 @@ TFactory = t.TypeVar('TFactory', bound='AbstractFactory')
 TQueryAdapter = t.TypeVar('TQueryAdapter', bound='AbstractQueryAdapter')
 TResourceManager = t.TypeVar('TResourceManager', bound='AbstractResourceManager')
 TSchema = t.TypeVar('TSchema', bound=SchemaABC)
-
-# AuthorizationCodeType = t.TypeVar('AuthorizationCodeType', bound=_AuthorizationCodeMixin)
-# ClientType = t.TypeVar('ClientType', bound=_ClientMixin)
-# TokenType = t.TypeVar('TokenType', bound='TokenMixin')
-# UserType = t.TypeVar('UserType', bound='UserMixin')

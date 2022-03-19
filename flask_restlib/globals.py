@@ -4,10 +4,15 @@ import typing as t
 from flask import current_app
 from werkzeug.local import LocalProxy
 
+from .orm import (
+    AbstractQueryExpression,
+    AbstractResourceManager,
+    AbstractQueryAdapter
+)
+
 if t.TYPE_CHECKING:
     from .core import RestLib
     from .oauth2 import AuthorizationServer
-    from .types import TQueryAdapter, TResourceManager
 
 
 current_restlib: RestLib = LocalProxy(  # type: ignore
@@ -19,7 +24,7 @@ authorization_server: AuthorizationServer = LocalProxy(  # type: ignore
 )
 
 
-def Q(expr):
+def Q(expr: t.Any) -> AbstractQueryExpression:
     """
     An adapter for a model attribute.
 
@@ -28,11 +33,11 @@ def Q(expr):
     return current_restlib.factory.create_query_expression(expr)
 
 
-def query_adapter(base_query) -> TQueryAdapter:
+def query_adapter(base_query) -> AbstractQueryAdapter:
     """Creates and returns a queryset for retrieving resources from persistent storage."""
     return current_restlib.factory.create_query_adapter(base_query)
 
 
-def resource_manager() -> TResourceManager:
+def resource_manager() -> AbstractResourceManager:
     """Creates and returns a resource manager instance."""
     return current_restlib.factory.create_resource_manager()

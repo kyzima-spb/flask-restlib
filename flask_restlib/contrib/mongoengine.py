@@ -20,7 +20,8 @@ from ..core import AbstractFactory
 from ..mixins import (
     AuthorizationCodeMixin,
     ClientMixin,
-    TokenMixin
+    TokenMixin,
+    UserMixin,
 )
 from ..oauth2 import generate_client_id
 from ..orm import (
@@ -31,9 +32,6 @@ from ..orm import (
 from ..schemas import RestlibMixin
 from ..types import (
     TIdentifier,
-    TQueryAdapter,
-    TResourceManager,
-    TSchema,
 )
 
 
@@ -43,8 +41,10 @@ __all__ = (
 )
 
 
-# todo: OAuth 2.0
+TDocument = t.TypeVar('TDocument', bound=me.Document)
 
+
+# todo: OAuth 2.0
 
 class AbstractOAuth2Client(ClientMixin, Document):
     id = me.StringField(
@@ -150,47 +150,47 @@ class MongoAutoSchema(_MongoEngineSchema):
 # todo: ORM Adapter
 
 
-class MongoEngineQueryExpression(AbstractQueryExpression[BaseQuerySet]):
+class MongoQueryExpression(AbstractQueryExpression[BaseQuerySet]):
     def __call__(self, q: BaseQuerySet) -> BaseQuerySet:
         return q.filter(self._native_expression)
 
-    def __and__(self, other) -> MongoEngineQueryExpression:
+    def __and__(self, other: t.Any) -> MongoQueryExpression:
         return self.__class__(self._native_expression & self.to_native(other))
 
-    def __or__(self, other) -> MongoEngineQueryExpression:
+    def __or__(self, other: t.Any) -> MongoQueryExpression:
         return self.__class__(self._native_expression | self.to_native(other))
 
-    def __eq__(self, other: t.Any) -> MongoEngineQueryExpression:  # type: ignore
+    def __eq__(self, other: t.Any) -> MongoQueryExpression:  # type: ignore
         if isinstance(self._native_expression, me.fields.BaseField):
             return self._make_expression(self._native_expression.name, other)
         return NotImplemented
 
-    def __ne__(self, other: t.Any) -> MongoEngineQueryExpression:  # type: ignore
+    def __ne__(self, other: t.Any) -> MongoQueryExpression:  # type: ignore
         if isinstance(self._native_expression, me.fields.BaseField):
             return self._make_expression(f'{self._native_expression.name}__ne', other)
         return NotImplemented
 
-    def __lt__(self, other: t.Any) -> MongoEngineQueryExpression:
+    def __lt__(self, other: t.Any) -> MongoQueryExpression:
         if isinstance(self._native_expression, me.fields.BaseField):
             return self._make_expression(f'{self._native_expression.name}__lt', other)
         return NotImplemented
 
-    def __le__(self, other: t.Any) -> MongoEngineQueryExpression:
+    def __le__(self, other: t.Any) -> MongoQueryExpression:
         if isinstance(self._native_expression, me.fields.BaseField):
             return self._make_expression(f'{self._native_expression.name}__lte', other)
         return NotImplemented
 
-    def __gt__(self, other: t.Any) -> MongoEngineQueryExpression:
+    def __gt__(self, other: t.Any) -> MongoQueryExpression:
         if isinstance(self._native_expression, me.fields.BaseField):
             return self._make_expression(f'{self._native_expression.name}__gt', other)
         return NotImplemented
 
-    def __ge__(self, other: t.Any) -> MongoEngineQueryExpression:
+    def __ge__(self, other: t.Any) -> MongoQueryExpression:
         if isinstance(self._native_expression, me.fields.BaseField):
             return self._make_expression(f'{self._native_expression.name}__gte', other)
         return NotImplemented
 
-    def _make_expression(self, argument_name: str, value: t.Any) -> MongoEngineQueryExpression:
+    def _make_expression(self, argument_name: str, value: t.Any) -> MongoQueryExpression:
         return self.__class__(
             me.Q(**{argument_name: self.to_native(value)})
         )
@@ -198,11 +198,6 @@ class MongoEngineQueryExpression(AbstractQueryExpression[BaseQuerySet]):
 
 class MongoQueryAdapter(AbstractQueryAdapter[BaseQuerySet]):
     __slots__ = ()
-
-    def __init__(self, base_query: t.Any) -> None:
-        if not isinstance(base_query, BaseQuerySet):
-            base_query = base_query.objects
-        super().__init__(base_query)
 
     def all(self) -> list:
         return self.make_query().all()
@@ -256,9 +251,22 @@ class MongoQueryAdapter(AbstractQueryAdapter[BaseQuerySet]):
 
         return self
 
+    def prepare_query(self, base_query: BaseQuerySet) -> BaseQuerySet:
+        if isinstance(base_query, BaseQuerySet):
+            return base_query
 
-class MongoResourceManager(AbstractResourceManager):
-    def _prepare_identifier(self, model_class, identifier: TIdentifier):
+        if isinstance(base_query, Document):
+            return base_query.objects
+
+        raise RuntimeError('The `base_query` argument must be a Document or BaseQuerySet instance.')
+
+
+class MongoResourceManager(AbstractResourceManager[TDocument]):
+    def _prepare_identifier(
+        self,
+        model_class: t.Type[TDocument],
+        identifier: TIdentifier
+    ) -> TIdentifier:
         """
         Converts the original resource identifier to a Mongo-friendly format.
 
@@ -335,62 +343,67 @@ class MongoResourceManager(AbstractResourceManager):
         return resource
 
 
-class MongoEngineFactory(AbstractFactory):
-    def create_query_adapter(self, base_query: t.Any) -> TQueryAdapter:
+class MongoEngineFactory(
+    AbstractFactory[
+        MongoQueryExpression,
+        MongoQueryAdapter,
+        MongoResourceManager,
+        MongoSchema,
+        MongoSchemaOpts,
+        TDocument
+    ],
+    t.Generic[TDocument]
+):
+    def create_query_adapter(self, base_query: t.Any) -> MongoQueryAdapter:
         return MongoQueryAdapter(base_query)
 
-    def create_query_expression(self, column):
-        return MongoEngineQueryExpression(column)
+    def create_query_expression(self, expr: t.Any) -> MongoQueryExpression:
+        return MongoQueryExpression(expr)
 
-    def create_resource_manager(self) -> TResourceManager:
+    def create_resource_manager(self) -> MongoResourceManager[TDocument]:
         return MongoResourceManager()
 
-    def create_schema(self, model_class) -> t.Type[TSchema]:
+    def create_schema(self, model_class: t.Type[TDocument]) -> t.Type[MongoAutoSchema]:
         raise NotImplementedError
 
-    def get_auto_schema_class(self) -> t.Type[TSchema]:
+    def get_auto_schema_class(self) -> t.Type[MongoAutoSchema]:
         return MongoAutoSchema
 
-    def get_auto_schema_options_class(self):
+    def get_auto_schema_options_class(self) -> t.Type[MongoAutoSchemaOpts]:
         return MongoAutoSchemaOpts
 
-    def get_schema_class(self) -> t.Type[TSchema]:
+    def get_schema_class(self) -> t.Type[MongoSchema]:
         return MongoSchema
 
-    def get_schema_options_class(self):
+    def get_schema_options_class(self) -> t.Type[MongoSchemaOpts]:
         return MongoSchemaOpts
 
-    def create_client_model(self, user_model):
-        return type(
-            'OAuth2Client',
-            (AbstractOAuth2Client,),
-            {
-                'user': me.ReferenceField(user_model, required=True),
-            }
-        )
+    def create_client_model(self, user_model: t.Type[UserMixin]) -> t.Type[ClientMixin]:
+        class OAuth2Client(AbstractOAuth2Client):
+            user = me.ReferenceField(user_model, required=True)
+        return OAuth2Client
 
-    def create_token_model(self, user_model, client_model):
-        return type(
-            'OAuth2Token',
-            (AbstractOAuth2Token,),
-            {
-                'user': me.ReferenceField(user_model, required=True),
-                'client': me.ReferenceField(client_model, required=True),
-            }
-        )
+    def create_token_model(
+        self,
+        user_model: t.Type[UserMixin],
+        client_model: t.Type[ClientMixin]
+    ) -> t.Type[TokenMixin]:
+        class OAuth2Token(AbstractOAuth2Token):
+            user = me.ReferenceField(user_model, required=True)
+            client = me.ReferenceField(client_model, required=True)
+        return OAuth2Token
 
-    def create_authorization_code_model(self, user_model, client_model):
-        return type(
-            'OAuth2Code',
-            (AbstractOAuth2AuthorizationCode,),
-            {
-                'user': me.ReferenceField(user_model, required=True),
-                'client': me.ReferenceField(client_model, required=True),
-
-                'meta': {
-                    'indexes': [
-                        ('client', 'code'),
-                    ],
-                }
+    def create_authorization_code_model(
+        self,
+        user_model: t.Type[UserMixin],
+        client_model: t.Type[ClientMixin]
+    ) -> t.Type[AuthorizationCodeMixin]:
+        class OAuth2Code(AbstractOAuth2AuthorizationCode):
+            user = me.ReferenceField(user_model, required=True)
+            client = me.ReferenceField(client_model, required=True)
+            meta = {
+                'indexes': [
+                    ('client', 'code'),
+                ],
             }
-        )
+        return OAuth2Code

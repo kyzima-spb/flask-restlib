@@ -233,12 +233,6 @@ class UpdateViewMixin(UpdateMixin):
 # OAuth2 Mixins
 
 
-AuthorizationCodeType = t.TypeVar('AuthorizationCodeType', bound=_AuthorizationCodeMixin)
-ClientType = t.TypeVar('ClientType', bound=_ClientMixin)
-TokenType = t.TypeVar('TokenType', bound='TokenMixin')
-UserType = t.TypeVar('UserType', bound='UserMixin')
-
-
 class AuthorizationCodeMixin(_AuthorizationCodeMixin):
     def is_expired(self) -> bool:
         return self.auth_time + 300 < time.time()
@@ -534,6 +528,10 @@ class TokenMixin(_TokenMixin):
             return False
         expires_at = datetime.fromtimestamp(self.get_expires_at())
         return expires_at > datetime.utcnow()
+
+    def is_revoked(self) -> bool:
+        """Returns true if the token has been revoked, false otherwise."""
+        return self.revoked
 
 
 class UserMixin(_UserMixin):

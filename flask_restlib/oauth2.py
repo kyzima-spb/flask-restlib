@@ -1,7 +1,6 @@
 from __future__ import annotations
 from functools import lru_cache
 import secrets
-import typing
 import typing as t
 from urllib.parse import urlparse
 from uuid import uuid4
@@ -16,15 +15,26 @@ from authlib.oauth2.rfc6750 import BearerTokenValidator as _BearerTokenValidator
 from authlib.oauth2.rfc7009 import RevocationEndpoint
 from authlib.oauth2.rfc7636 import CodeChallenge
 from flask import (
-    Flask, Blueprint, abort,
-    current_app, request,
-    url_for, redirect
+    abort,
+    Blueprint,
+    current_app,
+    Flask,
+    request,
+    Request,
+    redirect,
+    url_for,
 )
+from flask.typing import ResponseReturnValue
 from flask_login import (
-    LoginManager, current_user, login_required, login_user, logout_user
+    current_user,
+    LoginManager,
+    login_required,
+    login_user,
+    logout_user,
 )
 from flask_useful.views import MethodView, FormView
 from flask_useful.utils import flash
+from flask_wtf import FlaskForm
 from flask_wtf.csrf import validate_csrf
 from wtforms.validators import ValidationError
 
@@ -38,15 +48,16 @@ from .globals import (
     resource_manager
 )
 from .mixins import (
-    AuthorizationCodeType,
-    ClientType,
-    TokenType,
-    UserType
+    AuthorizationCodeMixin,
+    ClientMixin,
+    TokenMixin,
+    UserMixin,
 )
 from .utils import camel_to_list
 
 
 def generate_client_id(length: int) -> str:
+    """Creates and returns a unique client ID of the specified length."""
     while 1:
         client_id = secrets.token_hex(length // 2)
 
@@ -55,6 +66,7 @@ def generate_client_id(length: int) -> str:
 
 
 def generate_client_secret(length: int) -> str:
+    """Generates and returns a client secret key of the specified length."""
     return secrets.token_hex(length // 2)
 
 
@@ -73,10 +85,10 @@ def get_response_types(grants: list[grants.BaseGrant]) -> list[str]:
 def save_client(
     is_public: bool,
     client_metadata: dict,
-    client_id: str = None,
-    client_secret: str = None,
-    user: UserType = None
-) -> ClientType:
+    client_id: t.Optional[str] = None,
+    client_secret: t.Optional[str] = None,
+    user: t.Optional[UserMixin] = None
+) -> ClientMixin:
     """Saves OAuth client to persistent storage."""
     user = user or current_user
 
@@ -130,7 +142,7 @@ class AuthorizationCodeGrant(grants.AuthorizationCodeGrant):
         self,
         code: str,
         request: OAuth2Request
-    ) -> AuthorizationCodeType:
+    ) -> AuthorizationCodeMixin:
         code_challenge = request.data.get('code_challenge')
         code_challenge_method = request.data.get('code_challenge_method')
 
@@ -153,8 +165,8 @@ class AuthorizationCodeGrant(grants.AuthorizationCodeGrant):
     def query_authorization_code(
         self,
         code: str,
-        client: ClientType
-    ) -> t.Optional[AuthorizationCodeType]:
+        client: ClientMixin
+    ) -> t.Optional[AuthorizationCodeMixin]:
         authorization_code = (
             query_adapter(authorization_server.OAuth2Code)
                 .filter_by(code=code, client=client)
@@ -171,15 +183,15 @@ class AuthorizationCodeGrant(grants.AuthorizationCodeGrant):
 
     def delete_authorization_code(
         self,
-        authorization_code: AuthorizationCodeType
+        authorization_code: AuthorizationCodeMixin
     ) -> None:
         with resource_manager() as rm:
             rm.delete(authorization_code)
 
     def authenticate_user(
         self,
-        authorization_code: AuthorizationCodeType
-    ) -> UserType:
+        authorization_code: AuthorizationCodeMixin
+    ) -> UserMixin:
         return authorization_code.user
 
 
@@ -188,7 +200,7 @@ class PasswordGrant(grants.ResourceOwnerPasswordCredentialsGrant):
         self,
         username: str,
         password: str
-    ) -> t.Optional[UserType]:
+    ) -> t.Optional[UserMixin]:
         user = authorization_server.OAuth2User.find_by_username(username)
         if user and user.check_password(password):
             return user
@@ -201,7 +213,7 @@ class RefreshTokenGrant(grants.RefreshTokenGrant):
     def authenticate_refresh_token(
         self,
         refresh_token: str
-    ) -> t.Optional[TokenType]:
+    ) -> t.Optional[TokenMixin]:
         item = (
             query_adapter(authorization_server.OAuth2Token)
                 .filter_by(refresh_token=refresh_token)
@@ -213,10 +225,10 @@ class RefreshTokenGrant(grants.RefreshTokenGrant):
 
         return None
 
-    def authenticate_user(self, credential: TokenType) -> UserType:
+    def authenticate_user(self, credential: TokenMixin) -> UserMixin:
         return credential.user
 
-    def revoke_old_credential(self, credential: TokenType) -> None:
+    def revoke_old_credential(self, credential: TokenMixin) -> None:
         with resource_manager() as rm:
             rm.update(credential, {'revoked': True})
 
@@ -226,8 +238,8 @@ class RevokeToken(RevocationEndpoint):
         self,
         token: str,
         token_type_hint: str,
-        client: ClientType
-    ) -> t.Optional[TokenType]:
+        client: ClientMixin
+    ) -> t.Optional[TokenMixin]:
         current_app.logger.debug(f'Revocation token: {token}, type hint: {token_type_hint}')
 
         q = query_adapter(authorization_server.OAuth2Token).filter_by(client=client)
@@ -242,24 +254,24 @@ class RevokeToken(RevocationEndpoint):
         qs = (Q(token_model.access_token) == token) | (Q(token_model.refresh_token) == token)
         return q.filter(qs).first()
 
-    def revoke_token(self, token: TokenType) -> None:
+    def revoke_token(self, token: TokenMixin) -> None:
         with resource_manager() as rm:
             rm.update(token, {'revoked': True})
 
 
 class BearerTokenValidator(_BearerTokenValidator):
-    def authenticate_token(self, token_string):
+    def authenticate_token(self, token_string: str) -> t.Optional[TokenMixin]:
         return (
             query_adapter(authorization_server.OAuth2Token)
                 .filter_by(access_token=token_string)
                 .first()
         )
 
-    def request_invalid(self, request):
+    def request_invalid(self, request: OAuth2Request) -> bool:
         return False
 
-    def token_revoked(self, token):
-        return token.revoked
+    def token_revoked(self, token: TokenMixin) -> bool:
+        return token.is_revoked()
 
 
 # Views
@@ -270,7 +282,7 @@ class IndexView(MethodView):
     decorators = [login_required]
     template_name = 'restlib/index.html'
 
-    def get(self):
+    def get(self) -> ResponseReturnValue:
         return self.render_template()
 
 
@@ -279,12 +291,16 @@ class LoginView(FormView):
     form_class = LoginForm
     template_name = 'restlib/login.html'
 
-    def get(self):
+    def get(self) -> ResponseReturnValue:
         if current_user.is_authenticated:
             return redirect(url_for('oauth.index'))
         return super().get()
 
-    def form_valid(self, form, obj=None):
+    def form_valid(
+        self,
+        form: FlaskForm,
+        obj: t.Optional[t.Any] = None
+    ) -> ResponseReturnValue:
         user = authorization_server.OAuth2User.find_by_username(form.username.data)
 
         if user and user.check_password(form.password.data):
@@ -307,7 +323,7 @@ class LogoutView(MethodView):
     """Logout of your account."""
     decorators = [login_required]
 
-    def get(self):
+    def get(self) -> ResponseReturnValue:
         redirect_url = url_for('oauth.login')
         client_id = request.args.get('client_id')
         logout_uri = request.args.get(
@@ -334,7 +350,7 @@ class AuthorizeView(MethodView):
     decorators = [login_required]
     template_name = 'restlib/authorize.html'
 
-    def get(self):
+    def get(self) -> ResponseReturnValue:
         try:
             grant = authorization_server.validate_consent_request(end_user=current_user)
         except OAuth2Error as err:
@@ -344,7 +360,7 @@ class AuthorizeView(MethodView):
         else:
             return self.render_template(grant=grant)
 
-    def post(self):
+    def post(self) -> ResponseReturnValue:
         try:
             validate_csrf(request.form.get('csrf_token', ''))
         except ValidationError as err:
@@ -365,13 +381,13 @@ class AuthorizeView(MethodView):
 
 class AccessTokenView(MethodView):
     """Access token request."""
-    def post(self):
+    def post(self) -> ResponseReturnValue:
         return authorization_server.create_token_response()
 
 
 class RevokeTokenView(MethodView):
     """Revokes a previously issued token."""
-    def post(self):
+    def post(self) -> ResponseReturnValue:
         return authorization_server.create_endpoint_response(
             RevokeToken.ENDPOINT_NAME
         )
@@ -380,14 +396,14 @@ class RevokeTokenView(MethodView):
 class AuthorizationServer(_AuthorizationServer):
     def __init__(
         self,
-        app: typing.Optional[Flask] = None,
+        app: t.Optional[Flask] = None,
         *,
-        user_model: UserType,
-        client_model: ClientType,
-        token_model: TokenType,
-        authorization_code_model: AuthorizationCodeType,
-        query_client: typing.Optional[typing.Callable] = None,
-        save_token: typing.Optional[typing.Callable] = None
+        user_model: t.Type[UserMixin],
+        client_model: t.Type[ClientMixin],
+        token_model: t.Type[TokenMixin],
+        authorization_code_model: t.Type[AuthorizationCodeMixin],
+        query_client: t.Optional[t.Callable] = None,
+        save_token: t.Optional[t.Callable] = None
     ):
         """
         Arguments:
@@ -407,7 +423,7 @@ class AuthorizationServer(_AuthorizationServer):
 
         super().__init__(save_token=save_token, query_client=query_client)
 
-        self._registered_grants: list[grants.BaseGrant] = []
+        self._registered_grants: list[t.Type[grants.BaseGrant]] = []
 
         self.OAuth2User = user_model
         self.OAuth2Client = client_model
@@ -435,8 +451,8 @@ class AuthorizationServer(_AuthorizationServer):
         self,
         app: Flask,
         *,
-        query_client: typing.Optional[typing.Callable] = None,
-        save_token: typing.Optional[typing.Callable] = None
+        query_client: t.Optional[t.Callable] = None,
+        save_token: t.Optional[t.Callable] = None
     ) -> None:
         app.config.setdefault('RESTLIB_OAUTH2_URL_PREFIX', '/oauth')
         app.config.setdefault('RESTLIB_OAUTH2_AUTHORIZATION_CODE_GRANT', True)
@@ -479,11 +495,11 @@ class AuthorizationServer(_AuthorizationServer):
         self.bp.add_url_rule('/revoke', view_func=self.revoke_token_endpoint)
         app.register_blueprint(self.bp, url_prefix=app.config['RESTLIB_OAUTH2_URL_PREFIX'])
 
-    def _load_user(self, user_id) -> t.Optional[t.Any]:
+    def _load_user(self, user_id: t.Any) -> t.Optional[UserMixin]:
         """Returns user by user_id."""
         return resource_manager().get(self.OAuth2User, user_id)
 
-    def _load_user_from_request(self, request) -> t.Optional[t.Any]:
+    def _load_user_from_request(self, request: Request) -> t.Optional[UserMixin]:
         """Returns user by access token."""
         try:
             token = current_restlib.resource_protector.acquire_token()
@@ -491,7 +507,7 @@ class AuthorizationServer(_AuthorizationServer):
         except:
             return None
 
-    def _query_client(self, client_id: str) -> t.Optional[ClientType]:
+    def _query_client(self, client_id: str) -> t.Optional[ClientMixin]:
         """Returns client by client_id."""
         return resource_manager().get(self.OAuth2Client, client_id)
 
@@ -516,7 +532,7 @@ class AuthorizationServer(_AuthorizationServer):
         *,
         only_public: bool = False,
         only_confidential: bool = False
-    ) -> dict:
+    ) -> dict[str, t.Type[grants.BaseGrant]]:
         """Returns registered grants."""
         grants = {}
 
@@ -535,7 +551,11 @@ class AuthorizationServer(_AuthorizationServer):
 
         return grants
 
-    def register_grant(self, grant_cls, extensions: list = None) -> None:
+    def register_grant(
+        self,
+        grant_cls: t.Type[grants.BaseGrant],
+        extensions: t.Optional[list] = None
+    ) -> None:
         """Register a grant class into the endpoint registry."""
         super().register_grant(grant_cls, extensions)
         self._registered_grants.append(grant_cls)

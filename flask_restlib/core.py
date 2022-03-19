@@ -8,46 +8,62 @@ from authlib.integrations.flask_oauth2 import ResourceProtector
 from flask import Flask
 from flask_cors import CORS
 from flask_marshmallow import Marshmallow
-from marshmallow import Schema
-from webargs.flaskparser import parser
+from marshmallow import SchemaOpts
+from marshmallow.base import SchemaABC
 from werkzeug.exceptions import HTTPException
 
 from . import exceptions
 from .cli import api_cli
-from .globals import current_restlib
 from .http import THttpCache, HttpCache, HTTPMethodOverrideMiddleware
 from .mixins import (
-    AuthorizationCodeType,
-    ClientType,
-    TokenType,
-    UserType
+    AuthorizationCodeMixin,
+    ClientMixin,
+    TokenMixin,
+    UserMixin,
 )
 from .oauth2 import (
     AuthorizationServer,
     BearerTokenValidator
 )
-from .pagination import LimitOffsetPagination, TPagination
+from .orm import (
+    TQueryExpression,
+    TQueryAdapter,
+    TResourceManager,
+)
+from .pagination import (
+    LimitOffsetPagination,
+    TPagination,
+)
 from .routing import Router
 from .types import (
     ErrorResponse,
     CatchExceptionCallable,
-    TFactory,
     TFunc,
-    TResourceManager,
-    TQueryAdapter,
-    TSchema,
 )
 
 
-__all__ = (
-    'AbstractFactory',
-)
+__all__ = ('AbstractFactory', 'RestLib')
 
+
+TModel = t.TypeVar('TModel')
+TSchema = t.TypeVar('TSchema', bound=SchemaABC)
+TSchemaOpts = t.TypeVar('TSchemaOpts', bound=SchemaOpts)
+TFactory = t.TypeVar('TFactory', bound='AbstractFactory')
 
 DEFAULT_HTTP_ERROR_STATUS = 400
 
 
-class AbstractFactory(metaclass=ABCMeta):
+class AbstractFactory(
+    t.Generic[
+        TQueryExpression,
+        TQueryAdapter,
+        TResourceManager,
+        TSchema,
+        TSchemaOpts,
+        TModel
+    ],
+    metaclass=ABCMeta
+):
     """
     Abstract factory.
 
@@ -64,7 +80,7 @@ class AbstractFactory(metaclass=ABCMeta):
         """
 
     @abstractmethod
-    def create_query_expression(self, expr):
+    def create_query_expression(self, expr: t.Any) -> TQueryExpression:
         """
         Creates and returns an adapter for a model attribute.
 
@@ -77,7 +93,7 @@ class AbstractFactory(metaclass=ABCMeta):
         """Creates and returns a resource manager instance."""
 
     @abstractmethod
-    def create_schema(self, model_class: t.Type) -> t.Type[TSchema]:
+    def create_schema(self, model_class: t.Type[TModel]) -> t.Type[TSchema]:
         """
         Creates and returns an automatic schema class.
 
@@ -93,7 +109,7 @@ class AbstractFactory(metaclass=ABCMeta):
         """
 
     @abstractmethod
-    def get_auto_schema_options_class(self):
+    def get_auto_schema_options_class(self) -> t.Type[TSchemaOpts]:
         """Returns a reference to the base auto schema options class."""
 
     @abstractmethod
@@ -104,27 +120,33 @@ class AbstractFactory(metaclass=ABCMeta):
         """
 
     @abstractmethod
-    def get_schema_options_class(self):
+    def get_schema_options_class(self) -> t.Type[TSchemaOpts]:
         """Returns a reference to the base schema options class."""
 
     @abstractmethod
-    def create_client_model(self, user_model):
+    def create_client_model(self, user_model: t.Type[UserMixin]) -> t.Type[ClientMixin]:
         """Creates and returns the OAuth2 client class."""
 
     @abstractmethod
-    def create_token_model(self, user_model, client_model):
+    def create_token_model(
+        self,
+        user_model: t.Type[UserMixin],
+        client_model: t.Type[ClientMixin]
+    ) -> t.Type[TokenMixin]:
         """Creates and returns the OAuth2 token class."""
 
     @abstractmethod
-    def create_authorization_code_model(self, user_model, client_model):
+    def create_authorization_code_model(
+        self,
+        user_model: t.Type[UserMixin],
+        client_model: t.Type[ClientMixin]
+    ) -> t.Type[AuthorizationCodeMixin]:
         """Creates and returns the OAuth2 code class."""
 
 
-# def f(p: TPagination, default: TPagination) -> TPagination:
-#     return p or default
-# reveal_type(f(LimitOffsetPagination(), LimitOffsetPagination()))
-
-class RestLib(t.Generic[TPagination]):
+class RestLib(
+    t.Generic[TFactory, TPagination, THttpCache]
+):
     __slots__ = (
         '_deferred_error_handlers',
         'app',
@@ -146,15 +168,20 @@ class RestLib(t.Generic[TPagination]):
         *,
         factory: TFactory,
         pagination_handler: t.Optional[TPagination] = None,
-        http_cache_instance: THttpCache = None,
-        auth_options: dict = None
+        http_cache_instance: t.Optional[THttpCache] = None,
+        auth_options: t.Optional[dict] = None
     ) -> None:
         self._deferred_error_handlers: dict[t.Type[Exception], CatchExceptionCallable] = {}
 
         self.app = app
         self.cors = CORS()
         self.factory = factory
-        self.pagination_handler = pagination_handler or LimitOffsetPagination()
+
+        if pagination_handler is None:
+            self.pagination_handler = LimitOffsetPagination()
+        else:
+            self.pagination_handler = pagination_handler #or LimitOffsetPagination()
+
         self.http_cache_instance = http_cache_instance or HttpCache()
         self.router = Router('api')
 
@@ -183,10 +210,10 @@ class RestLib(t.Generic[TPagination]):
 
     def _create_authorization_server(
         self,
-        user_model: UserType,
-        client_model: t.Optional[ClientType] = None,
-        token_model: t.Optional[TokenType] = None,
-        authorization_code_model: t.Optional[AuthorizationCodeType] = None,
+        user_model: t.Type[UserMixin],
+        client_model: t.Optional[t.Type[ClientMixin]] = None,
+        token_model: t.Optional[t.Type[TokenMixin]] = None,
+        authorization_code_model: t.Optional[t.Type[AuthorizationCodeMixin]] = None,
         query_client: t.Optional[t.Callable] = None,
         save_token: t.Optional[t.Callable] = None
     ) -> AuthorizationServer:

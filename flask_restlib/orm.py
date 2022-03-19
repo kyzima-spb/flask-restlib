@@ -6,11 +6,8 @@ import typing as t
 
 from . import exceptions
 from .types import (
-    TException,
     TIdentifier,
     TQueryFilter,
-    TResourceManager,
-    # TQueryAdapter,
 )
 
 
@@ -21,13 +18,17 @@ __all__ = (
 )
 
 
-_TModel = t.TypeVar('_TModel')
 TQueryExpression = t.TypeVar('TQueryExpression', bound='AbstractQueryExpression')
 TQueryAdapter = t.TypeVar('TQueryAdapter', bound='AbstractQueryAdapter')
 TNativeQuery = t.TypeVar('TNativeQuery')
+TResourceManager = t.TypeVar('TResourceManager', bound='AbstractResourceManager')
+TModel = t.TypeVar('TModel')
 
 
-class AbstractQueryExpression(t.Generic[TNativeQuery], metaclass=ABCMeta):
+class AbstractQueryExpression(
+    t.Generic[TNativeQuery],
+    metaclass=ABCMeta
+):
     """
     An adapter represent that is:
 
@@ -113,18 +114,24 @@ class AbstractQueryAdapter(
         '_order_by',
     )
 
-    def __init__(self, base_query: t.Any) -> None:
+    def __init__(
+        self: TQueryAdapter,
+        base_query: t.Union[TNativeQuery, TQueryAdapter]
+    ) -> None:
         """
         Arguments:
             base_query: native queryset or a reference to the model class.
         """
-        if isinstance(base_query, self.__class__):
-            base_query = base_query.make_query()
+        self._base_query: TNativeQuery
 
-        self._base_query = base_query
+        if isinstance(base_query, self.__class__):
+            self._base_query = base_query.make_query()
+        else:
+            self._base_query = self.prepare_query(base_query)
+
         self._limit: t.Optional[int] = None
         self._offset: t.Optional[int] = None
-        self._order_by: list[t.Iterable] = [] # fixme: уточнить тип
+        self._order_by: list[tuple] = []
 
     def __iter__(self) -> t.Iterator[t.Any]:
         yield from self.all()
@@ -215,8 +222,15 @@ class AbstractQueryAdapter(
         self._order_by.append((column, *columns))
         return self
 
+    @abstractmethod
+    def prepare_query(self, base_query: TNativeQuery) -> TNativeQuery:
+        """Processes the constructor's input argument and returns a native query."""
 
-class AbstractResourceManager(metaclass=ABCMeta):
+
+class AbstractResourceManager(
+    t.Generic[TModel],
+    metaclass=ABCMeta
+):
     """Manager for working with REST resources."""
 
     def __enter__(self: TResourceManager) -> TResourceManager:
@@ -224,14 +238,15 @@ class AbstractResourceManager(metaclass=ABCMeta):
 
     def __exit__(
         self,
-        err_type: t.Type[TException],
-        err: TException,
-        traceback: TracebackType
-    ) -> None:
+        err_type: t.Optional[t.Type[BaseException]],
+        err: t.Optional[BaseException],
+        traceback: t.Optional[TracebackType]
+    ) -> t.Optional[bool]:
         if err is None:
             self.commit()
         else:
             self.rollback()
+        return None
 
     @abstractmethod
     def commit(self) -> None:
@@ -240,9 +255,9 @@ class AbstractResourceManager(metaclass=ABCMeta):
     @abstractmethod
     def create(
         self,
-        model_class: t.Any,
+        model_class: t.Type[TModel],
         data: t.Union[dict, list[dict]]
-    ) -> t.Any:
+    ) -> t.Union[TModel, list[TModel]]:
         """
         Creates and returns a new instance of the resource filled with data.
 
@@ -252,7 +267,7 @@ class AbstractResourceManager(metaclass=ABCMeta):
         """
 
     @abstractmethod
-    def delete(self, resource: t.Any) -> None:
+    def delete(self, resource: TModel) -> None:
         """
         Removes the resource from the persistent storage.
 
@@ -263,9 +278,9 @@ class AbstractResourceManager(metaclass=ABCMeta):
     @abstractmethod
     def get(
         self,
-        model_class: t.Type[t.Any],
+        model_class: t.Type[TModel],
         identifier: TIdentifier
-    ) -> t.Optional[t.Any]:
+    ) -> t.Optional[TModel]:
         """
         Returns a resource based on the given identifier, or None if not found.
 
@@ -276,7 +291,7 @@ class AbstractResourceManager(metaclass=ABCMeta):
 
     def populate_obj(
         self,
-        resource: t.Any,
+        resource: TModel,
         attributes: dict
     ) -> None:
         """
@@ -296,9 +311,9 @@ class AbstractResourceManager(metaclass=ABCMeta):
     @abstractmethod
     def update(
         self,
-        resource: t.Any,
+        resource: TModel,
         attributes: dict
-    ) -> t.Any:
+    ) -> TModel:
         """
         Updates the resource with the values of the passed attributes.
 
