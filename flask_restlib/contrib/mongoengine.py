@@ -83,10 +83,11 @@ class AbstractOAuth2Token(TokenMixin, Document):
         sparse=True
     )
     scope = me.StringField(default='')
-    revoked = me.BooleanField(default=False)
     issued_at = me.IntField(
         default=lambda: int(time.time())
     )
+    access_token_revoked_at = me.IntField(default=0)
+    refresh_token_revoked_at = me.IntField(default=0)
     expires_in = me.IntField(default=0)
 
     meta = {

@@ -230,7 +230,10 @@ class RefreshTokenGrant(grants.RefreshTokenGrant):
 
     def revoke_old_credential(self, credential: TokenMixin) -> None:
         with resource_manager() as rm:
-            rm.update(credential, {'revoked': True})
+            rm.update(credential, {
+                'access_token_revoked_at': True,
+                'refresh_token_revoked_at': True,
+            })
 
 
 class RevokeToken(RevocationEndpoint):
@@ -238,11 +241,11 @@ class RevokeToken(RevocationEndpoint):
         self,
         token: str,
         token_type_hint: str,
-        client: ClientMixin
+        # client: ClientMixin
     ) -> t.Optional[TokenMixin]:
         current_app.logger.debug(f'Revocation token: {token}, type hint: {token_type_hint}')
 
-        q = query_adapter(authorization_server.OAuth2Token).filter_by(client=client)
+        q = query_adapter(authorization_server.OAuth2Token)
 
         if token_type_hint:
             return q.filter_by(**{token_type_hint: token}).first()
@@ -254,9 +257,16 @@ class RevokeToken(RevocationEndpoint):
         qs = (Q(token_model.access_token) == token) | (Q(token_model.refresh_token) == token)
         return q.filter(qs).first()
 
-    def revoke_token(self, token: TokenMixin) -> None:
+    def revoke_token(self, token: TokenMixin, request) -> None:
+        hint = request.form.get('token_type_hint')
         with resource_manager() as rm:
-            rm.update(token, {'revoked': True})
+            if hint == 'access_token':
+                rm.update(token, {'access_token_revoked_at': True})
+            else:
+                rm.update(token, {
+                    'access_token_revoked_at': True,
+                    'refresh_token_revoked_at': True,
+                })
 
 
 class BearerTokenValidator(_BearerTokenValidator):
@@ -266,12 +276,6 @@ class BearerTokenValidator(_BearerTokenValidator):
                 .filter_by(access_token=token_string)
                 .first()
         )
-
-    def request_invalid(self, request: OAuth2Request) -> bool:
-        return False
-
-    def token_revoked(self, token: TokenMixin) -> bool:
-        return token.is_revoked()
 
 
 # Views
@@ -352,7 +356,7 @@ class AuthorizeView(MethodView):
 
     def get(self) -> ResponseReturnValue:
         try:
-            grant = authorization_server.validate_consent_request(end_user=current_user)
+            grant = authorization_server.get_consent_grant(end_user=current_user)
         except OAuth2Error as err:
             error_message = ', '.join(f'{k}: {v}' for k, v in err.get_body())
             current_app.logger.error(error_message)
@@ -394,6 +398,11 @@ class RevokeTokenView(MethodView):
 
 
 class AuthorizationServer(_AuthorizationServer):
+    # def generate_token(self, grant_type, client, user=None, scope=None,
+    #                    expires_in=None, include_refresh_token=True):
+    #     current_app.logger.debug(f'Generate token: {user}: {scope}')
+    #     super().generate_token(grant_type, client, user, scope, expires_in, include_refresh_token)
+
     def __init__(
         self,
         app: t.Optional[Flask] = None,

@@ -26,7 +26,7 @@ setup(
     include_package_data=True,
     setup_requires=['setuptools_scm'],
     install_requires=[
-        'Authlib>=0.15',
+        'Authlib>=1.0',
         'Flask>=2.0',
         'flask-cors>=3.0',
         'Flask-Login>=0.5',

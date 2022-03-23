@@ -495,8 +495,10 @@ class ClientMixin(_ClientMixin):
     def check_client_secret(self, client_secret: str) -> bool:
         return self.client_secret == client_secret
 
-    def check_token_endpoint_auth_method(self, method: str) -> bool:
-        return self.token_endpoint_auth_method == method
+    def check_endpoint_auth_method(self, method: str, endpoint: str) -> bool:
+        if endpoint == 'token':
+            return self.token_endpoint_auth_method == method
+        return True
 
     def check_response_type(self, response_type: str) -> bool:
         return response_type in self.response_types
@@ -506,8 +508,8 @@ class ClientMixin(_ClientMixin):
 
 
 class TokenMixin(_TokenMixin):
-    def get_client_id(self) -> str:
-        return self.client.get_client_id()
+    def check_client(self, client: ClientMixin) -> bool:
+        return self.client.get_client_id() == client.get_client_id()
 
     def get_scope(self) -> str:
         return self.scope
@@ -515,23 +517,25 @@ class TokenMixin(_TokenMixin):
     def get_expires_in(self) -> int:
         return self.expires_in
 
-    def get_expires_at(self) -> int:
-        return self.issued_at + self.expires_in
-
-    def get_user(self) -> t.Any:
+    def get_user(self) -> UserMixin:
         """Returns token owner."""
         return self.user
 
+    def is_expired(self) -> bool:
+        if not self.get_expires_in():
+            return True
+        expired_at = datetime.fromtimestamp(
+            self.issued_at + self.expires_in
+        )
+        return expired_at < datetime.utcnow()
+
     def is_refresh_token_valid(self) -> bool:
         """Returns true if the token is not expired, false otherwise."""
-        if self.revoked:
-            return False
-        expires_at = datetime.fromtimestamp(self.get_expires_at())
-        return expires_at > datetime.utcnow()
+        return not (self.is_revoked() or self.is_expired())
 
     def is_revoked(self) -> bool:
         """Returns true if the token has been revoked, false otherwise."""
-        return self.revoked
+        return bool(self.access_token_revoked_at or self.refresh_token_revoked_at)
 
 
 class UserMixin(_UserMixin):
