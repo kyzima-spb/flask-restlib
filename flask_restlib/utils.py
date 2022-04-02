@@ -3,9 +3,12 @@ from importlib import import_module
 import re
 import typing as t
 
+from authlib.oauth2.rfc6749.util import scope_to_list, list_to_scope
+
 
 __all__ = (
     'camel_to_list', 'camel_to_snake', 'snake_to_camel',
+    'scope_to_list', 'list_to_scope',
     'strip_sorting_flag',
     'import_string',
 )
