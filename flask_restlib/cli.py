@@ -8,7 +8,7 @@ from PyInquirer import prompt
 
 from . import validators
 from .globals import authorization_server
-from .oauth2 import (
+from .oauth2.authorization_server import (
     save_client,
     get_authentication_methods,
     get_response_types,

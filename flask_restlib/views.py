@@ -22,7 +22,7 @@ from . import mixins
 from .core import AbstractFactory
 from .globals import current_restlib, authorization_server
 from .http import THttpCache
-from .oauth2 import save_client
+from .oauth2.authorization_server import save_client
 from .permissions import (
     Permission,
     PublicMethods,

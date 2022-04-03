@@ -28,13 +28,13 @@ from sqlalchemy_utils.types import UUIDType
 from werkzeug.local import LocalProxy
 
 from ..core import AbstractFactory
-from ..mixins import (
+from ..oauth2.authorization_server import generate_client_id
+from ..oauth2.mixins import (
     AuthorizationCodeMixin,
     ClientMixin,
     TokenMixin,
     UserMixin,
 )
-from ..oauth2 import generate_client_id
 from ..orm import (
     AbstractQueryAdapter,
     AbstractQueryExpression,

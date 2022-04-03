@@ -15,15 +15,15 @@ from werkzeug.exceptions import HTTPException
 from . import exceptions
 from .cli import api_cli
 from .http import THttpCache, HttpCache, HTTPMethodOverrideMiddleware
-from .mixins import (
+from .oauth2.authorization_server import (
+    AuthorizationServer,
+    BearerTokenValidator
+)
+from .oauth2.mixins import (
     AuthorizationCodeMixin,
     ClientMixin,
     TokenMixin,
     UserMixin,
-)
-from .oauth2 import (
-    AuthorizationServer,
-    BearerTokenValidator
 )
 from .orm import (
     TQueryExpression,

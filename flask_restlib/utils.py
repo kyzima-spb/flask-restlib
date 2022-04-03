@@ -8,7 +8,7 @@ from authlib.oauth2.rfc6749.util import scope_to_list, list_to_scope
 
 __all__ = (
     'camel_to_list', 'camel_to_snake', 'snake_to_camel',
-    'scope_to_list', 'list_to_scope',
+    'iter_to_scope', 'scope_to_set',
     'strip_sorting_flag',
     'import_string',
 )
@@ -23,6 +23,16 @@ def camel_to_list(s: str, lower: bool = False) -> list[str]:
 def camel_to_snake(name: str) -> str:
     """Converts a camelcase string to a snake case string."""
     return '_'.join(camel_to_list(name, lower=True))
+
+
+def iter_to_scope(scope: t.Iterable[str]) -> str:
+    """Convert a list of scopes to a space separated string."""
+    return list_to_scope(set(scope))
+
+
+def scope_to_set(scope: str) -> set[str]:
+    """Convert a space separated string to a set of scopes."""
+    return set(scope_to_list(scope))
 
 
 def snake_to_camel(name: str) -> str:

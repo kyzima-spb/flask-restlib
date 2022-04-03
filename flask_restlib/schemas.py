@@ -7,8 +7,8 @@ from marshmallow import fields, validates
 from marshmallow.types import StrSequenceOrSet
 
 from . import validators
-from .oauth2 import (
-    authorization_server,
+from .globals import authorization_server
+from .oauth2.authorization_server import (
     get_authentication_methods,
     get_response_types
 )

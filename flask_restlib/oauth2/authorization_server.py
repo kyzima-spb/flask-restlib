@@ -2,58 +2,51 @@ from __future__ import annotations
 from functools import lru_cache
 import secrets
 import typing as t
-from urllib.parse import urlparse
 from uuid import uuid4
 
-from authlib.oauth2 import OAuth2Error
 from authlib.integrations.flask_oauth2 import (
     AuthorizationServer as _AuthorizationServer
 )
 from authlib.oauth2.rfc6749 import grants
 from authlib.oauth2.rfc6749.wrappers import OAuth2Request
 from authlib.oauth2.rfc6750 import BearerTokenValidator as _BearerTokenValidator
-from authlib.oauth2.rfc7009 import RevocationEndpoint
 from authlib.oauth2.rfc7636 import CodeChallenge
 from flask import (
-    abort,
     Blueprint,
     current_app,
     Flask,
-    request,
     Request,
-    redirect,
-    url_for,
 )
-from flask.typing import ResponseReturnValue
-from flask_login import (
-    current_user,
-    LoginManager,
-    login_required,
-    login_user,
-    logout_user,
-)
-from flask_useful.views import MethodView, FormView
-from flask_useful.utils import flash
-from flask_wtf import FlaskForm
-from flask_wtf.csrf import validate_csrf
-from wtforms.validators import ValidationError
+from flask_login import current_user, LoginManager
 
-from .exceptions import LogicalError
-from .forms import LoginForm
-from .globals import (
+from ..exceptions import LogicalError
+from ..globals import (
     authorization_server,
     current_restlib,
-    Q,
     query_adapter,
     resource_manager
 )
+from ..utils import camel_to_list
 from .mixins import (
     AuthorizationCodeMixin,
     ClientMixin,
     TokenMixin,
+    ScopeMixin,
     UserMixin,
 )
-from .utils import camel_to_list
+from . import views
+
+
+__all__ = (
+    'generate_client_id',
+    'generate_client_secret',
+    'get_authentication_methods',
+    'get_response_types',
+    'save_client',
+    'validate_client_id',
+    'AuthorizationServer',
+    'BearerTokenValidator',
+)
 
 
 def generate_client_id(length: int) -> str:
@@ -236,173 +229,7 @@ class RefreshTokenGrant(grants.RefreshTokenGrant):
             })
 
 
-class RevokeToken(RevocationEndpoint):
-    def query_token(
-        self,
-        token: str,
-        token_type_hint: str,
-        # client: ClientMixin
-    ) -> t.Optional[TokenMixin]:
-        current_app.logger.debug(f'Revocation token: {token}, type hint: {token_type_hint}')
-
-        q = query_adapter(authorization_server.OAuth2Token)
-
-        if token_type_hint:
-            return q.filter_by(**{token_type_hint: token}).first()
-
-        # without token_type_hint
-        current_app.logger.debug(f'Supported token types: {self.SUPPORTED_TOKEN_TYPES}')
-
-        token_model = authorization_server.OAuth2Token
-        qs = (Q(token_model.access_token) == token) | (Q(token_model.refresh_token) == token)
-        return q.filter(qs).first()
-
-    def revoke_token(self, token: TokenMixin, request) -> None:
-        hint = request.form.get('token_type_hint')
-        with resource_manager() as rm:
-            if hint == 'access_token':
-                rm.update(token, {'access_token_revoked_at': True})
-            else:
-                rm.update(token, {
-                    'access_token_revoked_at': True,
-                    'refresh_token_revoked_at': True,
-                })
-
-
-class BearerTokenValidator(_BearerTokenValidator):
-    def authenticate_token(self, token_string: str) -> t.Optional[TokenMixin]:
-        return (
-            query_adapter(authorization_server.OAuth2Token)
-                .filter_by(access_token=token_string)
-                .first()
-        )
-
-
-# Views
-
-
-class IndexView(MethodView):
-    """Home page."""
-    decorators = [login_required]
-    template_name = 'restlib/index.html'
-
-    def get(self) -> ResponseReturnValue:
-        return self.render_template()
-
-
-class LoginView(FormView):
-    """Account authentication."""
-    form_class = LoginForm
-    template_name = 'restlib/login.html'
-
-    def get(self) -> ResponseReturnValue:
-        if current_user.is_authenticated:
-            return redirect(url_for('oauth.index'))
-        return super().get()
-
-    def form_valid(
-        self,
-        form: FlaskForm,
-        obj: t.Optional[t.Any] = None
-    ) -> ResponseReturnValue:
-        user = authorization_server.OAuth2User.find_by_username(form.username.data)
-
-        if user and user.check_password(form.password.data):
-            remember = current_app.config['RESTLIB_REMEMBER_ME'] and form.remember_me.data
-            login_user(user, remember=remember)
-
-            redirect_url = request.args.get('next')
-
-            if redirect_url is None or not redirect_url.startswith('/'):
-                redirect_url = url_for('oauth.index')
-
-            return redirect(redirect_url)
-
-        flash.error('Invalid account')
-
-        return self.form_invalid(form, obj)
-
-
-class LogoutView(MethodView):
-    """Logout of your account."""
-    decorators = [login_required]
-
-    def get(self) -> ResponseReturnValue:
-        redirect_url = url_for('oauth.login')
-        client_id = request.args.get('client_id')
-        logout_uri = request.args.get(
-            current_app.config['RESTLIB_URL_PARAM_LOGOUT']
-        )
-
-        if client_id and logout_uri:
-            client = authorization_server.query_client(client_id)
-
-            if client is not None:
-                redirect_domains = {urlparse(url).netloc for url in client.redirect_uris}
-                logout_domain = urlparse(logout_uri).netloc
-
-                if logout_domain in redirect_domains:
-                    redirect_url = logout_uri
-
-        logout_user()
-
-        return redirect(redirect_url)
-
-
-class AuthorizeView(MethodView):
-    """Application authorization."""
-    decorators = [login_required]
-    template_name = 'restlib/authorize.html'
-
-    def get(self) -> ResponseReturnValue:
-        try:
-            grant = authorization_server.get_consent_grant(end_user=current_user)
-        except OAuth2Error as err:
-            error_message = ', '.join(f'{k}: {v}' for k, v in err.get_body())
-            current_app.logger.error(error_message)
-            abort(err.status_code, err.error)
-        else:
-            return self.render_template(grant=grant)
-
-    def post(self) -> ResponseReturnValue:
-        try:
-            validate_csrf(request.form.get('csrf_token', ''))
-        except ValidationError as err:
-            flash.error(str(err))
-            return redirect(request.url)
-
-        grant_user = None
-        accept = 'accept' in request.form
-        decline = 'decline' in request.form
-
-        if accept and not decline:
-            grant_user = current_user
-
-        return authorization_server.create_authorization_response(
-            grant_user=grant_user
-        )
-
-
-class AccessTokenView(MethodView):
-    """Access token request."""
-    def post(self) -> ResponseReturnValue:
-        return authorization_server.create_token_response()
-
-
-class RevokeTokenView(MethodView):
-    """Revokes a previously issued token."""
-    def post(self) -> ResponseReturnValue:
-        return authorization_server.create_endpoint_response(
-            RevokeToken.ENDPOINT_NAME
-        )
-
-
 class AuthorizationServer(_AuthorizationServer):
-    # def generate_token(self, grant_type, client, user=None, scope=None,
-    #                    expires_in=None, include_refresh_token=True):
-    #     current_app.logger.debug(f'Generate token: {user}: {scope}')
-    #     super().generate_token(grant_type, client, user, scope, expires_in, include_refresh_token)
-
     def __init__(
         self,
         app: t.Optional[Flask] = None,
@@ -444,14 +271,14 @@ class AuthorizationServer(_AuthorizationServer):
         self.login_manager.request_loader(self._load_user_from_request)
         self.login_manager.login_view = 'oauth.login'
 
-        self.index_endpoint = IndexView.as_view('index')
-        self.login_endpoint = LoginView.as_view('login')
-        self.logout_endpoint = LogoutView.as_view('logout')
-        self.authorize_endpoint = AuthorizeView.as_view('authorize')
-        self.access_token_endpoint = AccessTokenView.as_view('access_token')
-        self.revoke_token_endpoint = RevokeTokenView.as_view('revoke_token')
+        self.index_endpoint = views.IndexView.as_view('index')
+        self.login_endpoint = views.LoginView.as_view('login')
+        self.logout_endpoint = views.LogoutView.as_view('logout')
+        self.authorize_endpoint = views.AuthorizeView.as_view('authorize')
+        self.access_token_endpoint = views.AccessTokenView.as_view('access_token')
+        self.revoke_token_endpoint = views.RevokeTokenView.as_view('revoke_token')
 
-        self.bp = Blueprint('oauth', __name__, template_folder='templates')
+        self.bp = Blueprint('oauth', __name__, template_folder='../templates')
 
         if app is not None:
             self.init_app(app)
@@ -492,7 +319,7 @@ class AuthorizationServer(_AuthorizationServer):
         if app.config['RESTLIB_OAUTH2_REFRESH_TOKEN_GRANT']:
             self.register_grant(RefreshTokenGrant)
 
-        self.register_endpoint(RevokeToken)
+        self.register_endpoint(views.RevokeTokenEndpoint)
 
         self.login_manager.init_app(app)
 
@@ -531,9 +358,34 @@ class AuthorizationServer(_AuthorizationServer):
                 'id': uuid4(),
                 'client': request.client,
                 'user': request.user or request.client.user,
-                'scope': token_data.pop('scope', ''),
                 **token_data,
             })
+
+    def generate_token(
+        self,
+        grant_type: str,
+        client: ClientMixin,
+        user: t.Optional[UserMixin] = None,
+        scope: t.Optional[str] = None,
+        expires_in: t.Optional[int] = None,
+        include_refresh_token: bool = True
+    ) -> dict[str, t.Any]:
+        if scope is not None and user is not None:
+            current_app.logger.debug(
+                f'Generate token for user: {user} with scope: {scope!r}'
+            )
+
+            if isinstance(user, ScopeMixin):
+                scope = user.get_allowed_scope(scope)
+
+        return super().generate_token(
+            grant_type=grant_type,
+            client=client,
+            user=user,
+            scope=scope,
+            expires_in=expires_in,
+            include_refresh_token=include_refresh_token
+        )
 
     @lru_cache
     def get_registered_grants(
@@ -568,3 +420,12 @@ class AuthorizationServer(_AuthorizationServer):
         """Register a grant class into the endpoint registry."""
         super().register_grant(grant_cls, extensions)
         self._registered_grants.append(grant_cls)
+
+
+class BearerTokenValidator(_BearerTokenValidator):
+    def authenticate_token(self, token_string: str) -> t.Optional[TokenMixin]:
+        return (
+            query_adapter(authorization_server.OAuth2Token)
+                .filter_by(access_token=token_string)
+                .first()
+        )
