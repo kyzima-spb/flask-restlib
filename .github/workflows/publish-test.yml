@@ -27,12 +27,8 @@ jobs:
         name: Build a binary wheel and a source tarball
         run: |
           python -m build
-      -
-        name: List dist dir
-        run: ls -la dist/
-
-#      - name: Publish distribution 📦 to Test PyPI
-#        uses: pypa/gh-action-pypi-publish@master
-#        with:
-#          password: ${{ secrets.TEST_PYPI_API_TOKEN }}
-#          repository_url: https://test.pypi.org/legacy/
+      - name: Publish distribution 📦 to Test PyPI
+        uses: pypa/gh-action-pypi-publish@master
+        with:
+          password: ${{ secrets.TEST_PYPI_API_TOKEN }}
+          repository_url: https://test.pypi.org/legacy/
