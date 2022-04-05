@@ -9,9 +9,12 @@ def read_file(filename):
 
 
 readme = read_file('README.rst')
+version = read_file('version.txt')
+
 
 setup(
     name='flask-restlib',
+    version=version,
     description='Another extension for REST API.',
     long_description=readme,
     url='https://github.com/kyzima-spb/flask-restlib',
