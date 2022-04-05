@@ -12,10 +12,10 @@ readme = read_file('README.rst')
 
 setup(
     name='flask-restlib',
-    use_scm_version={
-        'relative_to': __file__,
-        'local_scheme': lambda version: '',
-    },
+    # use_scm_version={
+    #     'relative_to': __file__,
+    #     'local_scheme': lambda version: '',
+    # },
     description='Another extension for REST API.',
     long_description=readme,
     url='https://github.com/kyzima-spb/flask-restlib',
@@ -24,7 +24,7 @@ setup(
     author_email='office@kyzima-spb.com',
     packages=find_packages(),
     include_package_data=True,
-    setup_requires=['setuptools_scm'],
+    # setup_requires=['setuptools_scm'],
     install_requires=[
         'Authlib>=1.0',
         'Flask>=2.0',
