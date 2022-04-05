@@ -6,6 +6,7 @@ from .mixins import (
     ScopeMixin,
     UserMixin as _UserMixin
 )
+from ..decorators import getattr_or_implement
 from ..utils import iter_to_scope, scope_to_set
 
 
@@ -18,6 +19,9 @@ __all__ = (
 class RoleMixin(ScopeMixin):
     """A mixin for describing a role that uses scopes."""
 
+    def __str__(self) -> str:
+        return self.get_name()
+
     def _get_child_scope(self) -> set[str]:
         """Returns the scope set of child roles."""
         return set(chain.from_iterable(
@@ -28,15 +32,20 @@ class RoleMixin(ScopeMixin):
         """Returns the scope set of the current role."""
         raise NotImplementedError
 
+    @getattr_or_implement
     def get_children(self) -> t.Sequence[RoleMixin]:
         """Returns child roles."""
-        try:
-            return getattr(self, 'children')
-        except AttributeError:
-            raise NotImplementedError(
-                'No `children` attribute - '
-                f'override the `{self.__class__.__name__}.get_children()` method.'
-            )
+        return getattr(self, 'children')
+
+    @getattr_or_implement
+    def get_description(self) -> str:
+        """Returns the full description of the role."""
+        return getattr(self, 'description')
+
+    @getattr_or_implement
+    def get_name(self) -> str:
+        """Returns the programmatic name of the role, which is unique."""
+        return getattr(self, 'name')
 
     def get_scope(self) -> str:
         """Returns the scopes of the role."""
@@ -48,15 +57,10 @@ class RoleMixin(ScopeMixin):
 class UserMixin(ScopeMixin, _UserMixin):
     """A mixin for describing a user that uses roles."""
 
+    @getattr_or_implement
     def get_roles(self) -> t.Sequence[RoleMixin]:
         """Returns the roles assigned to the user."""
-        try:
-            return getattr(self, 'roles')
-        except AttributeError:
-            raise NotImplementedError(
-                'No `roles` attribute - '
-                f'override the `{self.__class__.__name__}.get_roles()` method.'
-            )
+        return getattr(self, 'roles')
 
     def get_scope(self) -> str:
         """Returns the scopes assigned to the user."""

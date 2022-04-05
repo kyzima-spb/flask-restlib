@@ -11,6 +11,7 @@ from authlib.oauth2.rfc6749 import (
 from flask import current_app
 from flask_login import UserMixin as _UserMixin
 
+from ..decorators import getattr_or_implement
 from ..utils import iter_to_scope, scope_to_set
 
 
@@ -26,23 +27,18 @@ __all__ = (
 class ScopeMixin:
     """Mixin for entities that use scopes."""
 
+    @getattr_or_implement
     def get_scope(self) -> str:
         """Returns the scopes of the entity."""
-        try:
-            scope = getattr(self, 'scope')
+        scope = getattr(self, 'scope')
 
-            if isinstance(scope, str):
-                return scope
+        if isinstance(scope, str):
+            return scope
 
-            raise NotImplementedError(
-                'The `scope` attribute incompatible type - '
-                f'override the `{self.__class__.__name__}.get_scope()` method.'
-            )
-        except AttributeError:
-            raise NotImplementedError(
-                'No `scope` attribute - '
-                f'override the `{self.__class__.__name__}.get_scope()` method.'
-            )
+        raise NotImplementedError(
+            'The `scope` attribute incompatible string type - '
+            f'override the `{self.__class__.__name__}.get_scope()` method.'
+        )
 
     def get_allowed_scope(self, scope: str) -> str:
         """Returns the allowed scopes from the given scope."""
@@ -55,19 +51,23 @@ class ScopeMixin:
 
 class AuthorizationCodeMixin(_AuthorizationCodeMixin):
     def is_expired(self) -> bool:
-        return self.auth_time + 300 < time.time()
+        return self.get_auth_time() + 300 < time.time()
 
+    @getattr_or_implement
     def get_redirect_uri(self) -> str:
-        return self.redirect_uri
+        return getattr(self, 'redirect_uri')
 
+    @getattr_or_implement
     def get_scope(self) -> str:
-        return self.scope
+        return getattr(self, 'scope')
 
+    @getattr_or_implement
     def get_auth_time(self) -> int:
-        return self.auth_time
+        return getattr(self, 'auth_time')
 
+    @getattr_or_implement
     def get_nonce(self) -> str:
-        return self.nonce
+        return getattr(self, 'nonce')
 
 
 class ClientMixin(ScopeMixin, _ClientMixin):
@@ -324,21 +324,24 @@ class TokenMixin(_TokenMixin):
     def check_client(self, client: ClientMixin) -> bool:
         return self.client.get_client_id() == client.get_client_id()
 
+    @getattr_or_implement
     def get_scope(self) -> str:
-        return self.scope
+        return getattr(self, 'scope')
 
+    @getattr_or_implement
     def get_expires_in(self) -> int:
-        return self.expires_in
+        return getattr(self, 'expires_in')
 
+    @getattr_or_implement
     def get_user(self) -> UserMixin:
         """Returns token owner."""
-        return self.user
+        return getattr(self, 'user')
 
     def is_expired(self) -> bool:
         if not self.get_expires_in():
             return True
         expired_at = datetime.fromtimestamp(
-            self.issued_at + self.expires_in
+            self.issued_at + self.get_expires_in()
         )
         return expired_at < datetime.utcnow()
 
