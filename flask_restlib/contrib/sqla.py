@@ -35,6 +35,7 @@ from ..oauth2.mixins import (
     TokenMixin,
     UserMixin,
 )
+from ..oauth2.rbac import RoleMixin
 from ..orm import (
     AbstractQueryAdapter,
     AbstractQueryExpression,
@@ -47,9 +48,10 @@ from ..types import (
 
 
 __all__ = (
-    'OAuth2ClientMixin',
-    'OAuth2TokenMixin',
-    'OAuth2AuthorizationCodeMixin',
+    'AbstractOAuth2AuthorizationCode',
+    'AbstractOAuth2Client',
+    'AbstractOAuth2Role',
+    'AbstractOAuth2Token',
     'SQLAQueryAdapter',
     'SQLAResourceManager',
     'SQLAFactory',
@@ -100,40 +102,148 @@ def create_user_reference_mixin(user_model: t.Type[UserMixin]) -> t.Type:
 
 # todo: OAuth 2.0
 
-class OAuth2ClientMixin(ClientMixin):
-    __tablename__ = 'oauth2_client'
+def AbstractOAuth2Role(
+    base_model_class: t.Type,
+    table_name: str = 'oauth2_role'
+) -> t.Type[RoleMixin]:
+    """
+    Creates and returns a base abstract class to describe a role.
 
-    id = sa.Column(
-        sa.String(48),
-        primary_key=True,
-        default=partial(generate_client_id, 48)
+    Arguments:
+        base_model_class: a base class for declarative class definitions.
+        table_name (str): table name in the database.
+    """
+    ref_table_name = f'{table_name}_children'
+
+    role_children = sa.Table(
+        ref_table_name, base_model_class.metadata,
+        sa.Column('parent_role_id', sa.ForeignKey(f'{table_name}.id'), primary_key=True),
+        sa.Column('child_role_id', sa.ForeignKey(f'{table_name}.id'), primary_key=True),
     )
-    client_secret = sa.Column(
-        sa.String(120),
-        nullable=False,
-        default=''
-    )
-    client_id_issued_at = sa.Column(
-        sa.Integer,
-        nullable=False,
-        default=0
-    )
-    client_secret_expires_at = sa.Column(
-        sa.Integer,
-        nullable=False,
-        default=0
-    )
-    client_metadata = sa.Column(sa.JSON, nullable=False)
+
+    class AbstractRole(RoleMixin, base_model_class):
+        __abstract__ = True
+        __tablename__ = table_name
+
+        id = sa.Column(sa.Integer, primary_key=True)
+        name = sa.Column(sa.String(50), unique=True, nullable=False)
+        description = sa.Column(sa.String(500), default='', nullable=False)
+        scope = sa.Column(sa.Text, default='')
+
+        @declared_attr
+        def children(cls) -> sa.orm.RelationshipProperty:
+            return relationship(
+                cls,
+                secondary=role_children,
+                primaryjoin=f'{cls.__name__}.id == {ref_table_name}.c.parent_role_id',
+                secondaryjoin=f'{cls.__name__}.id == {ref_table_name}.c.child_role_id',
+                backref='parents'
+            )
+
+    return AbstractRole
 
 
-class OAuth2TokenMixin(_OAuth2TokenMixin, TokenMixin):
-    __tablename__ = 'oauth2_token'
-    id = sa.Column(UUIDType(binary=False), primary_key=True)
+def AbstractOAuth2Client(
+    user_model: t.Type[UserMixin],
+    table_name: str = 'oauth2_client'
+) -> t.Type[ClientMixin]:
+    """
+    Creates and returns a base abstract class to describe a OAuth2 client.
+
+    Arguments:
+        user_model: reference to the user model class.
+        table_name (str): table name in the database.
+    """
+
+    class AbstractClient(
+        create_user_reference_mixin(user_model),  # type: ignore
+        ClientMixin,
+        get_declarative_base(user_model)  # type: ignore
+    ):
+        __abstract__ = True
+        __tablename__ = table_name
+
+        id = sa.Column(
+            sa.String(48),
+            primary_key=True,
+            default=partial(generate_client_id, 48)
+        )
+        client_secret = sa.Column(
+            sa.String(120),
+            nullable=False,
+            default=''
+        )
+        client_id_issued_at = sa.Column(
+            sa.Integer,
+            nullable=False,
+            default=0
+        )
+        client_secret_expires_at = sa.Column(
+            sa.Integer,
+            nullable=False,
+            default=0
+        )
+        client_metadata = sa.Column(sa.JSON, nullable=False)
+
+    return AbstractClient
 
 
-class OAuth2AuthorizationCodeMixin(_OAuth2AuthorizationCodeMixin, AuthorizationCodeMixin):
-    __tablename__ = 'oauth2_code'
-    id = sa.Column(UUIDType(binary=False), primary_key=True)
+def AbstractOAuth2Token(
+    user_model: t.Type[UserMixin],
+    client_model: t.Type[ClientMixin],
+    table_name: str = 'oauth2_token'
+) -> t.Type[TokenMixin]:
+    """
+    Creates and returns a base abstract class to describe a OAuth2 token.
+
+    Arguments:
+        user_model: reference to the user model class.
+        client_model: reference to the client model class.
+        table_name (str): table name in the database.
+    """
+
+    class AbstractToken(
+        create_user_reference_mixin(user_model),  # type: ignore
+        create_client_reference_mixin(client_model),  # type: ignore
+        _OAuth2TokenMixin,
+        TokenMixin,
+        get_declarative_base(user_model),  # type: ignore
+    ):
+        __abstract__ = True
+        __tablename__ = table_name
+
+        id = sa.Column(UUIDType(binary=False), primary_key=True)
+
+    return AbstractToken
+
+
+def AbstractOAuth2AuthorizationCode(
+    user_model: t.Type[UserMixin],
+    client_model: t.Type[ClientMixin],
+    table_name: str = 'oauth2_code'
+) -> t.Type[AuthorizationCodeMixin]:
+    """
+    Creates and returns a base abstract class to describe a OAuth2 authorization code.
+
+    Arguments:
+        user_model: reference to the user model class.
+        client_model: reference to the client model class.
+        table_name (str): table name in the database.
+    """
+
+    class AbstractAuthorizationCode(
+        create_user_reference_mixin(user_model),  # type: ignore
+        create_client_reference_mixin(client_model),  # type: ignore
+        _OAuth2AuthorizationCodeMixin,
+        AuthorizationCodeMixin,
+        get_declarative_base(user_model),  # type: ignore
+    ):
+        __abstract__ = True
+        __tablename__ = table_name
+
+        id = sa.Column(UUIDType(binary=False), primary_key=True)
+
+    return AbstractAuthorizationCode
 
 
 # todo: Marshmallow
@@ -359,11 +469,7 @@ class SQLAFactory(
     def create_client_model(self, user_model: t.Type[UserMixin]) -> t.Type[ClientMixin]:
         return type(
             'OAuth2Client',
-            (
-                create_user_reference_mixin(user_model),  # type: ignore
-                OAuth2ClientMixin,
-                get_declarative_base(user_model),  # type: ignore
-            ),
+            (AbstractOAuth2Client(user_model),),
             {}
         )
 
@@ -374,12 +480,7 @@ class SQLAFactory(
     ) -> t.Type[TokenMixin]:
         return type(
             'OAuth2Token',
-            (
-                create_user_reference_mixin(user_model),  # type: ignore
-                create_client_reference_mixin(client_model),  # type: ignore
-                OAuth2TokenMixin,
-                get_declarative_base(user_model),  # type: ignore
-            ),
+            (AbstractOAuth2Token(user_model, client_model),),
             {}
         )
 
@@ -390,11 +491,6 @@ class SQLAFactory(
     ) -> t.Type[AuthorizationCodeMixin]:
         return type(
             'OAuth2Code',
-            (
-                create_user_reference_mixin(user_model),  # type: ignore
-                create_client_reference_mixin(client_model),  # type: ignore
-                OAuth2AuthorizationCodeMixin,
-                get_declarative_base(user_model),  # type: ignore
-            ),
+            (AbstractOAuth2AuthorizationCode(user_model, client_model),),
             {}
         )
