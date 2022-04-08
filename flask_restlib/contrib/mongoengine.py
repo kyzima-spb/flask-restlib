@@ -3,6 +3,7 @@ from copy import deepcopy
 from functools import partial
 import time
 import typing as t
+from uuid import uuid4
 
 from marshmallow_mongoengine import (
     ModelSchema as _MongoEngineSchema,
@@ -24,6 +25,7 @@ from ..oauth2.mixins import (
     TokenMixin,
     UserMixin,
 )
+from ..oauth2.rbac import RoleMixin
 from ..orm import (
     AbstractQueryAdapter,
     AbstractQueryExpression,
@@ -36,8 +38,13 @@ from ..types import (
 
 
 __all__ = (
-    'AbstractOAuth2Client', 'AbstractOAuth2Token', 'AbstractOAuth2AuthorizationCode',
-    'MongoQueryAdapter', 'MongoResourceManager', 'MongoEngineFactory',
+    'AbstractOAuth2AuthorizationCode',
+    'AbstractOAuth2Client',
+    'AbstractOAuth2Role',
+    'AbstractOAuth2Token',
+    'MongoQueryAdapter',
+    'MongoResourceManager',
+    'MongoEngineFactory',
 )
 
 
@@ -45,6 +52,18 @@ TDocument = t.TypeVar('TDocument', bound=me.Document)
 
 
 # todo: OAuth 2.0
+
+class AbstractOAuth2Role(RoleMixin, Document):
+    name = me.StringField(required=True, max_length=50, unique=True)
+    description = me.StringField(max_length=500, default='')
+    scope = me.StringField(default='')
+    children = me.ListField(me.ReferenceField('self'))
+
+    meta = {
+        'allow_inheritance': True,
+        'collection': 'oauth2_role',
+    }
+
 
 class AbstractOAuth2Client(ClientMixin, Document):
     id = me.StringField(
@@ -61,13 +80,13 @@ class AbstractOAuth2Client(ClientMixin, Document):
     client_metadata = me.DictField(required=True)
 
     meta = {
-        'abstract': True,
+        'allow_inheritance': True,
         'collection': 'oauth2_client',
     }
 
 
 class AbstractOAuth2Token(TokenMixin, Document):
-    id = me.UUIDField(primary_key=True)
+    id = me.UUIDField(primary_key=True, default=uuid4)
     token_type = me.StringField(
         max_length=40,
         default='Bearer'
@@ -91,7 +110,7 @@ class AbstractOAuth2Token(TokenMixin, Document):
     expires_in = me.IntField(default=0)
 
     meta = {
-        'abstract': True,
+        'allow_inheritance': True,
         'collection': 'oauth2_token',
         'indexes': [
             'access_token',
@@ -101,7 +120,7 @@ class AbstractOAuth2Token(TokenMixin, Document):
 
 
 class AbstractOAuth2AuthorizationCode(AuthorizationCodeMixin, Document):
-    id = me.UUIDField(primary_key=True)
+    id = me.UUIDField(primary_key=True, default=uuid4)
     code = me.StringField(
         required=True,
         max_length=120,
@@ -122,7 +141,7 @@ class AbstractOAuth2AuthorizationCode(AuthorizationCodeMixin, Document):
     )
 
     meta = {
-        'abstract': True,
+        'allow_inheritance': True,
         'collection': 'oauth2_code',
     }
 
