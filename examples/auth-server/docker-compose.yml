@@ -1,0 +1,39 @@
+version: "3.7"
+
+volumes:
+  dbdata:
+
+services:
+  backend:
+    build:
+      context: ./
+    ports:
+      - 5000:5000
+    environment:
+      FLASK_APP: "auth_server:create_app()"
+      FLASK_ENV: development
+      PYTHONUNBUFFERED: 1
+    volumes:
+      - ./instance:/app/instance
+      - ./auth_server:/app/auth_server
+      - ../../flask_restlib:/python_packages/flask_restlib:ro
+    depends_on:
+      - db
+    restart: unless-stopped
+  db:
+    image: mariadb:latest
+    environment:
+      MYSQL_ROOT_PASSWORD: toor
+      MYSQL_USER: user
+      MYSQL_PASSWORD: demo
+      MYSQL_DATABASE: auth
+    volumes:
+      - dbdata:/var/lib/mysql
+    restart: unless-stopped
+  adminer:
+    image: adminer
+    ports:
+      - 8080:8080
+    depends_on:
+      - db
+    restart: unless-stopped

@@ -1,0 +1,6 @@
+# SECRET_KEY = 'Very secret'
+
+SQLALCHEMY_DATABASE_URI = f'mysql+pymysql://user:demo@db/auth'
+SQLALCHEMY_TRACK_MODIFICATIONS = False
+SQLALCHEMY_ECHO = True
+SQLALCHEMY_ENGINE_OPTIONS = {}
