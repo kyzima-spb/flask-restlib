@@ -30,7 +30,10 @@ class RoleMixin(ScopeMixin):
 
     def _get_role_scope(self) -> set[str]:
         """Returns the scope set of the current role."""
-        raise NotImplementedError
+        raise NotImplementedError(
+            'The `scope` attribute incompatible string type - '
+            f'override the `{self.__class__.__name__}._get_role_scope()` method.'
+        )
 
     @getattr_or_implement
     def get_children(self) -> t.Sequence[RoleMixin]:
@@ -49,9 +52,11 @@ class RoleMixin(ScopeMixin):
 
     def get_scope(self) -> str:
         """Returns the scopes of the role."""
-        return iter_to_scope(
-            self._get_role_scope() | self._get_child_scope()
-        )
+        try:
+            role_scope = scope_to_set(super().get_scope())
+        except NotImplementedError:
+            role_scope = self._get_role_scope()
+        return iter_to_scope(role_scope | self._get_child_scope())
 
 
 class UserMixin(ScopeMixin, _UserMixin):

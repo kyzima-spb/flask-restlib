@@ -185,7 +185,7 @@ class AuthorizationCodeGrant(grants.AuthorizationCodeGrant):
         self,
         authorization_code: AuthorizationCodeMixin
     ) -> UserMixin:
-        return authorization_code.user
+        return authorization_code.get_user()
 
 
 class PasswordGrant(grants.ResourceOwnerPasswordCredentialsGrant):
@@ -219,7 +219,7 @@ class RefreshTokenGrant(grants.RefreshTokenGrant):
         return None
 
     def authenticate_user(self, credential: TokenMixin) -> UserMixin:
-        return credential.user
+        return credential.get_user()
 
     def revoke_old_credential(self, credential: TokenMixin) -> None:
         with resource_manager() as rm:
@@ -357,7 +357,7 @@ class AuthorizationServer(_AuthorizationServer):
             rm.create(self.OAuth2Token, {
                 'id': uuid4(),
                 'client': request.client,
-                'user': request.user or request.client.user,
+                'user': request.user or request.client.get_user(),
                 **token_data,
             })
 

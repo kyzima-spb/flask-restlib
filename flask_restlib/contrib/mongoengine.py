@@ -40,7 +40,7 @@ from ..types import (
 __all__ = (
     'AbstractOAuth2AuthorizationCode',
     'AbstractOAuth2Client',
-    'AbstractOAuth2Role',
+    'OAuth2Role',
     'AbstractOAuth2Token',
     'MongoQueryAdapter',
     'MongoResourceManager',
@@ -53,7 +53,8 @@ TDocument = t.TypeVar('TDocument', bound=me.Document)
 
 # todo: OAuth 2.0
 
-class AbstractOAuth2Role(RoleMixin, Document):
+
+class OAuth2Role(RoleMixin, Document):
     name = me.StringField(required=True, max_length=50, unique=True)
     description = me.StringField(max_length=500, default='')
     scope = me.StringField(default='')
@@ -80,6 +81,7 @@ class AbstractOAuth2Client(ClientMixin, Document):
     client_metadata = me.DictField(required=True)
 
     meta = {
+        'abstract': True,
         'allow_inheritance': True,
         'collection': 'oauth2_client',
     }
@@ -110,6 +112,7 @@ class AbstractOAuth2Token(TokenMixin, Document):
     expires_in = me.IntField(default=0)
 
     meta = {
+        'abstract': True,
         'allow_inheritance': True,
         'collection': 'oauth2_token',
         'indexes': [
@@ -141,9 +144,88 @@ class AbstractOAuth2AuthorizationCode(AuthorizationCodeMixin, Document):
     )
 
     meta = {
+        'abstract': True,
         'allow_inheritance': True,
         'collection': 'oauth2_code',
     }
+
+
+def create_client_model(
+    user_model: t.Type[UserMixin],
+    # table_name: str = 'oauth2_client',
+    is_abstract: bool = False
+) -> t.Type[ClientMixin]:
+    """
+    Creates and returns a base abstract class to describe a OAuth2 client.
+
+    The name of the new class is OAuth2Client.
+
+    Arguments:
+        user_model: reference to the user model class.
+        table_name (str): table name in the database.
+        is_abstract (bool): make the model abstract, by default False.
+    """
+    class OAuth2Client(AbstractOAuth2Client):
+        user = me.ReferenceField(user_model, required=True)
+        meta = {
+            'abstract': is_abstract,
+        }
+    return OAuth2Client
+
+
+def create_token_model(
+    user_model: t.Type[UserMixin],
+    client_model: t.Type[ClientMixin],
+    # table_name: str = 'oauth2_token',
+    is_abstract: bool = False
+) -> t.Type[TokenMixin]:
+    """
+    Creates and returns a base abstract class to describe a OAuth2 token.
+
+    The name of the new class is OAuth2Token, use it in a relationship or class reference.
+
+    Arguments:
+        user_model: reference to the user model class.
+        client_model: reference to the client model class.
+        table_name (str): table name in the database.
+        is_abstract (bool): make the model abstract, by default False.
+    """
+    class OAuth2Token(AbstractOAuth2Token):
+        user = me.ReferenceField(user_model, required=True)
+        client = me.ReferenceField(client_model, required=True)
+        meta = {
+            'abstract': is_abstract,
+        }
+    return OAuth2Token
+
+
+def create_authorization_code_model(
+    user_model: t.Type[UserMixin],
+    client_model: t.Type[ClientMixin],
+    # table_name: str = 'oauth2_code',
+    is_abstract: bool = False
+) -> t.Type[AuthorizationCodeMixin]:
+    """
+    Creates and returns a base abstract class to describe a OAuth2 authorization code.
+
+    The name of the new class is OAuth2Code, use it in a relationship or class reference.
+
+    Arguments:
+        user_model: reference to the user model class.
+        client_model: reference to the client model class.
+        table_name (str): table name in the database.
+        is_abstract (bool): make the model abstract, by default False.
+    """
+    class OAuth2Code(AbstractOAuth2AuthorizationCode):
+        user = me.ReferenceField(user_model, required=True)
+        client = me.ReferenceField(client_model, required=True)
+        meta = {
+            'abstract': is_abstract,
+            'indexes': [
+                ('client', 'code'),
+            ],
+        }
+    return OAuth2Code
 
 
 # todo: Marshmallow
@@ -275,7 +357,7 @@ class MongoQueryAdapter(AbstractQueryAdapter[BaseQuerySet]):
         if isinstance(base_query, BaseQuerySet):
             return base_query
 
-        if isinstance(base_query, Document):
+        if issubclass(base_query, Document):
             return base_query.objects
 
         raise RuntimeError('The `base_query` argument must be a Document or BaseQuerySet instance.')
@@ -399,31 +481,18 @@ class MongoEngineFactory(
         return MongoSchemaOpts
 
     def create_client_model(self, user_model: t.Type[UserMixin]) -> t.Type[ClientMixin]:
-        class OAuth2Client(AbstractOAuth2Client):
-            user = me.ReferenceField(user_model, required=True)
-        return OAuth2Client
+        return create_client_model(user_model)
 
     def create_token_model(
         self,
         user_model: t.Type[UserMixin],
         client_model: t.Type[ClientMixin]
     ) -> t.Type[TokenMixin]:
-        class OAuth2Token(AbstractOAuth2Token):
-            user = me.ReferenceField(user_model, required=True)
-            client = me.ReferenceField(client_model, required=True)
-        return OAuth2Token
+        return create_token_model(user_model, client_model)
 
     def create_authorization_code_model(
         self,
         user_model: t.Type[UserMixin],
         client_model: t.Type[ClientMixin]
     ) -> t.Type[AuthorizationCodeMixin]:
-        class OAuth2Code(AbstractOAuth2AuthorizationCode):
-            user = me.ReferenceField(user_model, required=True)
-            client = me.ReferenceField(client_model, required=True)
-            meta = {
-                'indexes': [
-                    ('client', 'code'),
-                ],
-            }
-        return OAuth2Code
+        return create_authorization_code_model(user_model, client_model)

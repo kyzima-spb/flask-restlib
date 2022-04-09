@@ -50,8 +50,21 @@ class ScopeMixin:
 
 
 class AuthorizationCodeMixin(_AuthorizationCodeMixin):
+    @getattr_or_implement
+    def get_auth_time(self) -> int:
+        return getattr(self, 'auth_time')
+
+    @getattr_or_implement
+    def get_client(self) -> ClientMixin:
+        """Returns the client to which the authorization code was issued."""
+        return getattr(self, 'client')
+
     def is_expired(self) -> bool:
         return self.get_auth_time() + 300 < time.time()
+
+    @getattr_or_implement
+    def get_nonce(self) -> str:
+        return getattr(self, 'nonce')
 
     @getattr_or_implement
     def get_redirect_uri(self) -> str:
@@ -62,12 +75,9 @@ class AuthorizationCodeMixin(_AuthorizationCodeMixin):
         return getattr(self, 'scope')
 
     @getattr_or_implement
-    def get_auth_time(self) -> int:
-        return getattr(self, 'auth_time')
-
-    @getattr_or_implement
-    def get_nonce(self) -> str:
-        return getattr(self, 'nonce')
+    def get_user(self) -> UserMixin:
+        """Returns authorization code owner."""
+        return getattr(self, 'user')
 
 
 class ClientMixin(ScopeMixin, _ClientMixin):
@@ -319,18 +329,36 @@ class ClientMixin(ScopeMixin, _ClientMixin):
     def check_grant_type(self, grant_type: str) -> bool:
         return grant_type in self.grant_types
 
+    @getattr_or_implement
+    def get_user(self) -> UserMixin:
+        """Returns client owner."""
+        return getattr(self, 'user')
+
 
 class TokenMixin(_TokenMixin):
     def check_client(self, client: ClientMixin) -> bool:
-        return self.client.get_client_id() == client.get_client_id()
+        return self.get_client().get_client_id() == client.get_client_id()
 
     @getattr_or_implement
-    def get_scope(self) -> str:
-        return getattr(self, 'scope')
+    def get_access_token_revoked_at(self) -> int:
+        return getattr(self, 'access_token_revoked_at')
+
+    @getattr_or_implement
+    def get_client(self) -> ClientMixin:
+        """Returns the client to which the token was issued."""
+        return getattr(self, 'client')
 
     @getattr_or_implement
     def get_expires_in(self) -> int:
         return getattr(self, 'expires_in')
+
+    @getattr_or_implement
+    def get_issued_at(self) -> int:
+        return getattr(self, 'issued_at')
+
+    @getattr_or_implement
+    def get_scope(self) -> str:
+        return getattr(self, 'scope')
 
     @getattr_or_implement
     def get_user(self) -> UserMixin:
@@ -341,9 +369,13 @@ class TokenMixin(_TokenMixin):
         if not self.get_expires_in():
             return True
         expired_at = datetime.fromtimestamp(
-            self.issued_at + self.get_expires_in()
+            self.get_issued_at() + self.get_expires_in()
         )
         return expired_at < datetime.utcnow()
+
+    @getattr_or_implement
+    def get_refresh_token_revoked_at(self) -> int:
+        return getattr(self, 'refresh_token_revoked_at')
 
     def is_refresh_token_valid(self) -> bool:
         """Returns true if the token is not expired, false otherwise."""
@@ -351,7 +383,7 @@ class TokenMixin(_TokenMixin):
 
     def is_revoked(self) -> bool:
         """Returns true if the token has been revoked, false otherwise."""
-        return bool(self.access_token_revoked_at or self.refresh_token_revoked_at)
+        return bool(self.get_access_token_revoked_at() or self.get_refresh_token_revoked_at())
 
 
 class UserMixin(_UserMixin):
