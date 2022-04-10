@@ -8,6 +8,7 @@ from authlib.integrations.flask_oauth2 import ResourceProtector
 from flask import Flask
 from flask_cors import CORS
 from flask_marshmallow import Marshmallow
+from flask_wtf import CSRFProtect
 from marshmallow import SchemaOpts
 from marshmallow.base import SchemaABC
 from werkzeug.exceptions import HTTPException
@@ -151,6 +152,7 @@ class RestLib(
         '_deferred_error_handlers',
         'app',
         'cors',
+        'csrf',
         'factory',
         'pagination_handler',
         'http_cache_instance',
@@ -175,6 +177,7 @@ class RestLib(
 
         self.app = app
         self.cors = CORS()
+        self.csrf = CSRFProtect()
         self.factory = factory
 
         if pagination_handler is None:
@@ -291,7 +294,10 @@ class RestLib(
     def init_app(self, app: Flask) -> None:
         app.wsgi_app = HTTPMethodOverrideMiddleware(app.wsgi_app)
 
+        app.config.setdefault('WTF_CSRF_CHECK_DEFAULT', False)
+
         self.cors.init_app(app)
+        self.csrf.init_app(app)
         self.ma.init_app(app)
 
         app.config.setdefault('RESTLIB_URL_PREFIX', '')
