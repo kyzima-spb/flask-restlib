@@ -1,6 +1,3 @@
-# SECRET_KEY = 'Very secret'
+SECRET_KEY = 'Very secret string'
 
-SQLALCHEMY_DATABASE_URI = f'mysql+pymysql://user:demo@db/auth'
-SQLALCHEMY_TRACK_MODIFICATIONS = False
-SQLALCHEMY_ECHO = True
-SQLALCHEMY_ENGINE_OPTIONS = {}
+MONGODB_HOST = 'mongodb://user:demo@mongo/auth?authSource=admin'

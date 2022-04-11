@@ -13,27 +13,33 @@ services:
       FLASK_APP: "auth_server:create_app()"
       FLASK_ENV: development
       PYTHONUNBUFFERED: 1
+      AUTHLIB_INSECURE_TRANSPORT: 1
     volumes:
       - ./instance:/app/instance
       - ./auth_server:/app/auth_server
       - ../../flask_restlib:/python_packages/flask_restlib:ro
     depends_on:
-      - db
+      - mongo
     restart: unless-stopped
-  db:
-    image: mariadb:latest
+
+  mongo:
+    image: mongo
     environment:
-      MYSQL_ROOT_PASSWORD: toor
-      MYSQL_USER: user
-      MYSQL_PASSWORD: demo
-      MYSQL_DATABASE: auth
+      MONGO_INITDB_ROOT_USERNAME: user
+      MONGO_INITDB_ROOT_PASSWORD: demo
+      MONGO_INITDB_DATABASE: auth
     volumes:
-      - dbdata:/var/lib/mysql
+      - dbdata:/data/db
     restart: unless-stopped
-  adminer:
-    image: adminer
+
+  mongo-express:
+    image: mongo-express
     ports:
-      - 8080:8080
+      - 8081:8081
+    environment:
+      ME_CONFIG_MONGODB_SERVER: mongo
+      ME_CONFIG_MONGODB_ADMINUSERNAME: user
+      ME_CONFIG_MONGODB_ADMINPASSWORD: demo
     depends_on:
-      - db
+      - mongo
     restart: unless-stopped
