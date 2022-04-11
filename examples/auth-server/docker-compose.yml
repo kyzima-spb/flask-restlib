@@ -11,13 +11,8 @@ services:
       - 5000:5000
     environment:
       FLASK_APP: "auth_server:create_app()"
-      FLASK_ENV: development
       PYTHONUNBUFFERED: 1
       AUTHLIB_INSECURE_TRANSPORT: 1
-    volumes:
-      - ./instance:/app/instance
-      - ./auth_server:/app/auth_server
-      - ../../flask_restlib:/python_packages/flask_restlib:ro
     depends_on:
       - mongo
     restart: unless-stopped
