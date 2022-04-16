@@ -59,6 +59,13 @@ def get_grant_choices(is_public: bool) -> list[dict]:
     ]
 
 
+def get_supported_scopes() -> list[dict[str, t.Any]]:
+    """Returns list of supported scopes by this authorization server."""
+    choices = [{'value': i, 'name': str(i)} for i in authorization_server.get_supported_scopes()]
+    choices.sort(key=lambda i: i['name'])
+    return choices
+
+
 def make_action_step(func: TFunc) -> dict:
     """
     Creates a step that is always skipped,
@@ -171,22 +178,29 @@ def create_client(user: t.Any) -> None:
                 'validate': lambda uris: validate_url(uris, multiline=True, required=True),
                 'multiline': True,
             },
-            {
-                'type': 'input',
-                'name': 'scope',
-                'message': 'Enter a space-separated list of scope values',
-            },
-            {
-                'type': 'confirm',
-                'name': 'additional',
-                'message': 'Enter additional client information?',
-                'default': False,
-            },
             make_action_step(lambda answer: answer.pop('grants')),
         ]
     )
 
-    if metadata.pop('additional'):
+    data.update(prompt([
+        {
+            'type': 'checkbox',
+            'name': 'scopes',
+            'message': 'Choice scope values',
+            'choices': get_supported_scopes(),
+        },
+    ]))
+
+    additional = prompt([
+        {
+            'type': 'confirm',
+            'name': 'answer',
+            'message': 'Enter additional client information?',
+            'default': False,
+        },
+    ])
+
+    if additional.pop('answer'):
         additional_metadata = prompt([
             {
                 'type': 'input',
@@ -241,6 +255,6 @@ def create_client(user: t.Any) -> None:
         bold=True
     )
     click.secho(f'''
-        Client ID:     {client.id}
+        Client ID:     {client.get_client_id()}
         Client secret: {client.client_secret}
     ''')
