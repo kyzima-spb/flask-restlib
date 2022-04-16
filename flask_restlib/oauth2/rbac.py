@@ -22,16 +22,16 @@ class RoleMixin(ScopeMixin):
     def __str__(self) -> str:
         return self.get_name()
 
-    def _get_child_scope(self) -> set[str]:
+    def _get_child_scopes(self) -> set[t.Any]:
         """Returns the scope set of child roles."""
         return set(chain.from_iterable(
-            scope_to_set(r.get_scope()) for r in self.get_children()
+            r.get_scopes() for r in self.get_children()
         ))
 
-    def _get_role_scope(self) -> set[str]:
+    def _get_role_scopes(self) -> set[t.Any]:
         """Returns the scope set of the current role."""
         raise NotImplementedError(
-            'The `scope` attribute incompatible string type - '
+            f'The `{self.__class__.__name__}.scopes` attribute does not exist, '
             f'override the `{self.__class__.__name__}._get_role_scope()` method.'
         )
 
@@ -50,13 +50,13 @@ class RoleMixin(ScopeMixin):
         """Returns the programmatic name of the role, which is unique."""
         return getattr(self, 'name')
 
-    def get_scope(self) -> str:
+    def get_scopes(self) -> set[t.Any]:
         """Returns the scopes of the role."""
         try:
-            role_scope = scope_to_set(super().get_scope())
+            role_scopes = super().get_scopes()
         except NotImplementedError:
-            role_scope = self._get_role_scope()
-        return iter_to_scope(role_scope | self._get_child_scope())
+            role_scopes = self._get_role_scopes()
+        return role_scopes | self._get_child_scopes()
 
 
 class UserMixin(ScopeMixin, _UserMixin):
@@ -67,8 +67,8 @@ class UserMixin(ScopeMixin, _UserMixin):
         """Returns the roles assigned to the user."""
         return getattr(self, 'roles')
 
-    def get_scope(self) -> str:
+    def get_scopes(self) -> set[t.Any]:
         """Returns the scopes assigned to the user."""
-        return iter_to_scope(chain.from_iterable(
-            scope_to_set(r.get_scope()) for r in self.get_roles()
+        return set(chain.from_iterable(
+            r.get_scopes() for r in self.get_roles()
         ))

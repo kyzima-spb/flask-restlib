@@ -57,7 +57,7 @@ TDocument = t.TypeVar('TDocument', bound=me.Document)
 class OAuth2Role(RoleMixin, Document):
     name = me.StringField(required=True, max_length=50, unique=True)
     description = me.StringField(max_length=500, default='')
-    scope = me.StringField(default='')
+    scopes = me.ListField(me.StringField())
     children = me.ListField(me.ReferenceField('self'))
 
     meta = {
@@ -79,6 +79,7 @@ class AbstractOAuth2Client(ClientMixin, Document):
     client_id_issued_at = me.IntField(default=0)
     client_secret_expires_at = me.IntField(default=0)
     client_metadata = me.DictField(required=True)
+    scopes = me.ListField(me.StringField())
 
     meta = {
         'abstract': True,

@@ -27,19 +27,6 @@ __all__ = (
 class ScopeMixin:
     """Mixin for entities that use scopes."""
 
-    @getattr_or_implement
-    def get_scope(self) -> str:
-        """Returns the scopes of the entity."""
-        scope = getattr(self, 'scope')
-
-        if isinstance(scope, str):
-            return scope
-
-        raise NotImplementedError(
-            'The `scope` attribute incompatible string type - '
-            f'override the `{self.__class__.__name__}.get_scope()` method.'
-        )
-
     def get_allowed_scope(self, scope: str) -> str:
         """Returns the allowed scopes from the given scope."""
         if not scope:
@@ -47,6 +34,31 @@ class ScopeMixin:
         return iter_to_scope(
             scope_to_set(self.get_scope()) & scope_to_set(scope)
         )
+
+    @getattr_or_implement
+    def get_scope(self) -> str:
+        """
+        Returns string containing a space-separated list of scope values.
+
+        .. _`Section 3.3`: https://tools.ietf.org/html/rfc7591#section-3.3
+        """
+        scopes = self.get_scopes()
+
+        if not all(map(lambda i: isinstance(i, str), scopes)):
+            import warnings
+
+            warnings.warn(
+                'The items of the scopes list are of non-string type. '
+                f'Override the `{self.__class__.__name__}.get_scope()` method if necessary.',
+                RuntimeWarning
+            )
+
+        return iter_to_scope(str(i) for i in scopes)
+
+    @getattr_or_implement
+    def get_scopes(self) -> set[t.Any]:
+        """Returns list of scope values."""
+        return set(getattr(self, 'scopes'))
 
 
 class AuthorizationCodeMixin(_AuthorizationCodeMixin):
@@ -201,20 +213,6 @@ class ClientMixin(ScopeMixin, _ClientMixin):
         .. _`Section 2.2`: https://tools.ietf.org/html/rfc7591#section-2.2
         """
         return self.client_metadata.get('logo_uri')
-
-    @property
-    def scope(self) -> str:
-        """
-        String containing a space-separated list of scope values
-        (as described in `Section 3.3`_ of OAuth 2.0 [RFC6749])
-        that the client can use when requesting access tokens.
-
-        The semantics of values in this list are service specific.
-        If omitted, an authorization server MAY register a client with a default set of scopes.
-
-        .. _`Section 3.3`: https://tools.ietf.org/html/rfc7591#section-3.3
-        """
-        return self.client_metadata.get('scope') or current_app.config['RESTLIB_DEFAULT_SCOPE']
 
     @property
     def contacts(self) -> list[str]:
