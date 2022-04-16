@@ -218,6 +218,7 @@ class RestLib(
         token_model: t.Optional[t.Type[TokenMixin]] = None,
         authorization_code_model: t.Optional[t.Type[AuthorizationCodeMixin]] = None,
         query_client: t.Optional[t.Callable] = None,
+        query_supported_scopes: t.Optional[t.Callable] = None,
         save_token: t.Optional[t.Callable] = None
     ) -> AuthorizationServer:
         """
@@ -246,6 +247,7 @@ class RestLib(
             token_model=token_model,
             authorization_code_model=authorization_code_model,
             query_client=query_client,
+            query_supported_scopes=query_supported_scopes,
             save_token=save_token
         )
 

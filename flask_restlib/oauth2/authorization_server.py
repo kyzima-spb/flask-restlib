@@ -77,6 +77,7 @@ def get_response_types(grants: list[grants.BaseGrant]) -> list[str]:
 
 def save_client(
     is_public: bool,
+    scopes: list,
     client_metadata: dict,
     client_id: t.Optional[str] = None,
     client_secret: t.Optional[str] = None,
@@ -110,6 +111,7 @@ def save_client(
             'id': client_id,
             'client_secret': client_secret,
             'client_metadata': client_metadata,
+            'scopes': scopes,
             'user': user,
         })
 
@@ -239,6 +241,7 @@ class AuthorizationServer(_AuthorizationServer):
         token_model: t.Type[TokenMixin],
         authorization_code_model: t.Type[AuthorizationCodeMixin],
         query_client: t.Optional[t.Callable] = None,
+        query_supported_scopes: t.Optional[t.Callable] = None,
         save_token: t.Optional[t.Callable] = None
     ):
         """
@@ -249,6 +252,7 @@ class AuthorizationServer(_AuthorizationServer):
             token_model: OAuth token model class.
             authorization_code_model: OAuth code model class.
             query_client: A function to get client by client_id.
+            query_supported_scopes: A function to get supported scopes.
             save_token: A function to save tokens.
         """
         if save_token is None:
@@ -260,6 +264,7 @@ class AuthorizationServer(_AuthorizationServer):
         super().__init__(save_token=save_token, query_client=query_client)
 
         self._registered_grants: list[t.Type[grants.BaseGrant]] = []
+        self._query_supported_scopes = query_supported_scopes
 
         self.OAuth2User = user_model
         self.OAuth2Client = client_model
@@ -411,6 +416,12 @@ class AuthorizationServer(_AuthorizationServer):
                 grants[' '.join(camel_to_list(grant.__name__))] = grant
 
         return grants
+
+    def get_supported_scopes(self) -> set[t.Any]:
+        """Returns set of supported scopes by this authorization server."""
+        if self._query_supported_scopes is not None:
+            return self._query_supported_scopes()
+        return set(self.scopes_supported)
 
     def register_grant(
         self,
