@@ -1,6 +1,6 @@
 from flask_bcrypt import Bcrypt
 from flask_mongoengine import MongoEngine
-from flask_restlib.contrib.mongoengine import OAuth2Role
+from flask_restlib.contrib.mongoengine import OAuth2Role, create_client_model
 from flask_restlib.oauth2.rbac import UserMixin
 import mongoengine as me
 
@@ -25,10 +25,7 @@ class Scope(db.Document):
 
 
 class Role(OAuth2Role):
-    scope = me.ListField(me.ReferenceField(Scope))
-
-    def _get_role_scope(self) -> set[str]:
-        return {s.name for s in self.scope}
+    scopes = me.ListField(me.ReferenceField(Scope))
 
 
 class User(UserMixin, db.Document):
@@ -53,3 +50,7 @@ class User(UserMixin, db.Document):
     def find_by_username(cls, email):
         """Returns the user with passed username, or None."""
         return cls.objects(email=email).first()
+
+
+class Client(create_client_model(User)):
+    scopes = me.ListField(me.ReferenceField(Scope))
