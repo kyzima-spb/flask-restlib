@@ -44,7 +44,6 @@ Option                                       Description
                                              Defaults to ``()``.
 `RESTLIB_LOAD_ONLY`                          Fields to skip during deserialization (read-only fields).
                                              Defaults to ``()``.
-`RESTLIB_DEFAULT_SCOPE`                      Default scopes list.
-                                             Used if no scope is specified for the client.
-                                             Defaults to ``''``.
+`OAUTH2_SCOPES_SUPPORTED`                    Scope is supported by Authorization Server.
+                                             Defaults to ``set()``.
 =========================================    ================================================================
