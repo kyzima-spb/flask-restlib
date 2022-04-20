@@ -89,6 +89,85 @@ HTTP
 Mixins
 ------
 
+OAuth2
+------
+
+Authorization Server
+~~~~~~~~~~~~~~~~~~~~
+
+.. autoclass:: flask_restlib.oauth2.authorization_server.AuthorizationServer
+    :members:
+    :show-inheritance:
+
+.. autoclass:: flask_restlib.oauth2.authorization_server.BearerTokenValidator
+    :members:
+    :show-inheritance:
+
+Mixins
+~~~~~~
+
+.. autoclass:: flask_restlib.oauth2.mixins.AuthorizationCodeMixin
+    :members:
+    :show-inheritance:
+
+.. autoclass:: flask_restlib.oauth2.mixins.ClientMixin
+    :members:
+    :show-inheritance:
+
+.. autoclass:: flask_restlib.oauth2.mixins.TokenMixin
+    :members:
+    :show-inheritance:
+
+.. autoclass:: flask_restlib.oauth2.mixins.ScopeMixin
+    :members:
+    :show-inheritance:
+
+.. autoclass:: flask_restlib.oauth2.mixins.UserMixin
+    :members:
+    :show-inheritance:
+
+RBAC
+~~~~
+
+.. autoclass:: flask_restlib.oauth2.rbac.RoleMixin
+    :members:
+    :show-inheritance:
+
+.. autoclass:: flask_restlib.oauth2.rbac.UserMixin
+    :members:
+    :show-inheritance:
+
+Views
+~~~~~
+
+.. autoclass:: flask_restlib.oauth2.views.AccessTokenView
+    :members:
+    :show-inheritance:
+
+.. autoclass:: flask_restlib.oauth2.views.AuthorizeView
+    :members:
+    :show-inheritance:
+
+.. autoclass:: flask_restlib.oauth2.views.IndexView
+    :members:
+    :show-inheritance:
+
+.. autoclass:: flask_restlib.oauth2.views.LoginView
+    :members:
+    :show-inheritance:
+
+.. autoclass:: flask_restlib.oauth2.views.LogoutView
+    :members:
+    :show-inheritance:
+
+.. autoclass:: flask_restlib.oauth2.views.RevokeTokenEndpoint
+    :members:
+    :show-inheritance:
+
+.. autoclass:: flask_restlib.oauth2.views.RevokeTokenView
+    :members:
+    :show-inheritance:
+
 ORM
 ---
 
