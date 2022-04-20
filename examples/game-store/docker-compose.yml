@@ -8,19 +8,18 @@ services:
     build:
       context: ./
     ports:
-      - 8080:5000
+      - 5000:5000
     environment:
       FLASK_APP: "game_store:create_app()"
-      FLASK_ENV: development
       PYTHONUNBUFFERED: 1
-    volumes:
-      - ./instance:/app/instance
-      - ./game_store:/app/game_store
+      AUTHLIB_INSECURE_TRANSPORT: 1
     depends_on:
       - db
     restart: unless-stopped
+
   db:
-    image: mariadb:latest
+#    image: mariadb:latest
+    image: mysql:5.7
     environment:
       MYSQL_ROOT_PASSWORD: toor
       MYSQL_USER: user
@@ -29,10 +28,11 @@ services:
     volumes:
       - dbdata:/var/lib/mysql
     restart: unless-stopped
+
   adminer:
     image: adminer
     ports:
-      - 8081:8080
+      - 8080:8080
     depends_on:
       - db
     restart: unless-stopped

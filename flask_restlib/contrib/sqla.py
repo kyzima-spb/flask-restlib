@@ -15,6 +15,7 @@ from flask_marshmallow.sqla import (
 )
 import sqlalchemy as sa
 from sqlalchemy.ext.declarative import declared_attr
+from sqlalchemy.ext.mutable import MutableList
 from sqlalchemy.orm import (
     Query,
     relationship,
@@ -192,6 +193,11 @@ def create_client_model(
             default=0
         )
         client_metadata = sa.Column(sa.JSON, nullable=False)
+        scopes = sa.Column(
+            MutableList.as_mutable(sa.JSON),
+            nullable=False,
+            default=list
+        )
 
     return OAuth2Client
 

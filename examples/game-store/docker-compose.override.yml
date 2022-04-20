@@ -1,0 +1,10 @@
+version: "3.7"
+
+services:
+  backend:
+    environment:
+      FLASK_ENV: development
+    volumes:
+      - ./instance:/app/instance
+      - ./game_store:/app/game_store
+      - ../../flask_restlib:/python_packages/flask_restlib:ro
