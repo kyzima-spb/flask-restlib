@@ -12,7 +12,10 @@ from .utils import strip_sorting_flag
 from .types import TQueryAdapter
 
 
-__all__ = ('SortHandler', 'TSortHandler',)
+__all__ = (
+    'SortHandler',
+    'TSortHandler',
+)
 
 
 TSortHandler = t.TypeVar('TSortHandler', bound='SortHandler')

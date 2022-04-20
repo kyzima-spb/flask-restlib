@@ -6,6 +6,9 @@ from wtforms import fields
 from wtforms import validators
 
 
+__all__ = ('LoginForm',)
+
+
 def trim(s: t.Optional[str]) -> t.Optional[str]:
     return s.strip() if s is not None else None
 

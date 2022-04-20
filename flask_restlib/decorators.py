@@ -5,6 +5,9 @@ import typing as t
 _F = t.TypeVar('_F', bound=t.Callable[..., t.Any])
 
 
+__all__ = ('getattr_or_implement',)
+
+
 def getattr_or_implement(getter: _F) -> _F:
     """
     Used in mixins to get the value of a property in a getter method

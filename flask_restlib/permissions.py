@@ -17,6 +17,14 @@ from .types import TView
 _F = t.TypeVar('_F', bound=t.Callable[['Permission', 'Permission'], 'Permission'])
 
 
+__all__ = (
+    'Permission',
+    'IsAuthenticated',
+    'PublicMethods',
+    'TokenHasScope',
+)
+
+
 def check_type(method: _F) -> _F:
     @wraps(method)
     def wrapper(self: Permission, other: Permission) -> Permission:

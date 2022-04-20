@@ -13,6 +13,12 @@ from .types import TView
 from .utils import camel_to_snake
 
 
+__all__ = (
+    'Route',
+    'Router',
+)
+
+
 class Collection:
     """
     Represents a collection or REST resource.

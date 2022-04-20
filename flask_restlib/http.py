@@ -26,9 +26,12 @@ def url_update_query_string(url: str, params: dict[str, t.Any]) -> str:
     """
     Given a URL, set or replace a query parameters and return the modified URL.
 
-    >>> url_update_query_string('https://example.com?offset=5&limit=25', {
-    ...     'offset': 0,
-    ... })
+    >>> url_update_query_string(
+    ...     'https://example.com?offset=5&limit=25',
+    ...     {
+    ...         'offset': 0,
+    ...     }
+    ... )
     'https://example.com?offset=0&limit=25'
     """
     r = urlsplit(url)
@@ -94,7 +97,7 @@ class HttpCache(AbstractHttpCache):
 
 class HTTPMethodOverrideMiddleware:
     """
-    https://flask.palletsprojects.com/en/2.0.x/patterns/methodoverrides/
+    https://flask.palletsprojects.com/en/2.1.x/patterns/methodoverrides/
     """
 
     allowed_methods = frozenset([
