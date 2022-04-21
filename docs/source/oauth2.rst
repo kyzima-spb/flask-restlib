@@ -1,7 +1,7 @@
 .. _oauth2:
 
-OAuth2
-======
+OAuth 2.0
+=========
 
 Сервер авторизации
 ------------------
@@ -457,6 +457,119 @@ ScopeMixin
 Области действия на основе ролей
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+`Flask-Restlib` имеет встроенную поддержку ролей.
+**Основная задача роли** - группировка областей действий с целью упрощения назначения их пользователю.
+
+Роль решает проблему `Don't Repeat Yourself`_, когда нескольким пользователям нужно назначить одинаковый набор областей.
+Например, мы можем назначить область действия ``posts`` пользователю ``user1``, но забыть для пользователя ``user2``.
+
+Одной роли можно назначить множество областей действия; одна область действия, может быть назначена множеству ролей.
+У одной роли может быть множество дочерних ролей, но только один родитель.
+
+Чтобы начать использовать роли, необходимо создать свой класс модели,
+для этого нужно воспользоваться фабричной функцией или базовым классом для выбранного ORM:
+
+* :py:func:`~flask_restlib.contrib.sqla.create_role_model` - для SQLAlchemy
+* :py:class:`~flask_restlib.contrib.mongoengine.OAuth2Role` - для MongoEngine
+
+.. code-block:: python
+
+    from flask_sqlalchemy import SQLAlchemy
+    from flask_restlib.contrib.sqla import create_role_model
+
+
+    db = SQLAlchemy()
+
+    Role = create_role_model(db.Model)
+
+
+Если нужно унаследоваться от базового класса роли, но для его создания используется фабричная функция,
+базовый класс нужно сделать абстрактным, для этого у фабричной функции есть аргумент ``is_abstract``:
+
+.. code-block:: python
+
+    from flask_sqlalchemy import SQLAlchemy
+    from flask_restlib.contrib.sqla import create_role_model
+
+
+    db = SQLAlchemy()
+
+    class Role(create_role_model(db.Model, is_abstract=True)):
+        """Дополнительные атрибуты модели"""
+
+Если базовый класс не сделать абстрактным, то в базе данных могут появиться две таблицы,
+либо будет выброшено исключение при попытке отображения новой сущности - поведение зависит от выбранной ORM.
+
+Далее с помощью примеси :py:class:`~flask_restlib.oauth2.rbac.RoleMixin` добавить поддержку ролей для пользователя.
+Одну роль можно назначить множеству пользователей; один пользователь может иметь множество ролей.
+Необходимо описать связь многие ко многим в синтаксисе выбранной ORM, имя таблицы (коллекции) по-умолчанию ``oauth2_role``.
+
+Итоговый пример:
+
+.. code-block:: python
+
+    # A module with a description of models, for example - models.py
+
+    from flask_bcrypt import Bcrypt
+    from flask_restlib.oauth2.rbac import UserMixin
+    from flask_restlib.contrib.sqla import (
+        create_role_model
+    )
+    from flask_sqlalchemy import SQLAlchemy
+    import sqlalchemy as sa
+
+
+    db = SQLAlchemy()
+    bcrypt = Bcrypt()
+
+
+    user_roles = sa.Table(
+        'user_roles', db.Model.metadata,
+        sa.Column('user_id', sa.ForeignKey('user.id'), primary_key=True),
+        sa.Column('role_id', sa.ForeignKey('oauth2_role.id'), primary_key=True),
+    )
+
+
+    Role = create_role_model(db.Model)
+
+
+    class User(UserMixin, db.Model):
+        id = sa.Column(sa.Integer, primary_key=True)
+        email = sa.Column(sa.String(50), unique=True, nullable=False)
+        _password = sa.Column('password', sa.String(100), nullable=False)
+        is_active = sa.Column(sa.Boolean, default=True, nullable=False)
+
+        def change_password(self, value):
+            """[Required] Changes the current password to passed."""
+            self._password = bcrypt.generate_password_hash(value).decode('utf-8')
+
+        def check_password(self, password):
+            """[Required] Returns true if the password is valid, false otherwise."""
+            return bcrypt.check_password_hash(self._password, password)
+
+        password = property(fset=change_password)
+
+        @classmethod
+        def find_by_username(cls, email):
+            """[Required] Returns the user with passed username, or None."""
+            return cls.query.filter_by(email=email).first()
+
+
+Неподдерживаемые ORM
+--------------------
+
+Если нужно выполнить интеграцию с хранилищем, которое не поддерживается из коробки,
+то воспользуйтесь примесями из модуля :py:mod:`flask_restlib.oauth2.mixins`.
+Каждая примесь имеет геттеры с реализацией по-умолчанию.
+Геттер пытаются найти нужное свойство в текущем классе и если не находит,
+то выбрасывает исключение :py:class:`NotImplementedError`.
+Вы можете либо описать свойство, либо переопределить геттер.
+Для более подробной информации смотрите документацию по каждой примеси:
+
+* :py:class:`~flask_restlib.oauth2.mixins.ClientMixin` - примесь для клиента OAuth 2.0;
+* :py:class:`~flask_restlib.oauth2.mixins.TokenMixin` - примесь для токена доступа OAuth 2.0;
+* :py:class:`~flask_restlib.oauth2.mixins.AuthorizationCodeMixin` - примесь для кода авторизации OAuth 2.0;
 
 .. _Authlib: https://authlib.org
 .. _Access Token Scope: https://datatracker.ietf.org/doc/html/rfc6749#section-3.3
+.. _Don't Repeat Yourself: https://ru.wikipedia.org/wiki/Don’t_repeat_yourself

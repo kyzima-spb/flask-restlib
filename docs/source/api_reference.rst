@@ -306,9 +306,11 @@ MongoEngine
 
 .. autofunction:: flask_restlib.contrib.mongoengine.create_client_model
 
-.. autofunction:: flask_restlib.contrib.mongoengine.create_role_model
-
 .. autofunction:: flask_restlib.contrib.mongoengine.create_token_model
+
+.. autoclass:: flask_restlib.contrib.mongoengine.OAuth2Role
+    :members:
+    :show-inheritance:
 
 .. autoclass:: flask_restlib.contrib.mongoengine.MongoQueryAdapter
     :members:
