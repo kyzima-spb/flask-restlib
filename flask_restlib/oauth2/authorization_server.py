@@ -282,6 +282,9 @@ class AuthorizationServer(_AuthorizationServer):
         self.authorize_endpoint = views.AuthorizeView.as_view('authorize')
         self.access_token_endpoint = views.AccessTokenView.as_view('access_token')
         self.revoke_token_endpoint = views.RevokeTokenView.as_view('revoke_token')
+        self.introspection_token_endpoint = views.IntrospectionTokenView.as_view(
+            'introspect_token'
+        )
 
         self.bp = Blueprint('oauth', __name__, template_folder='../templates')
 
@@ -301,6 +304,7 @@ class AuthorizationServer(_AuthorizationServer):
         app.config.setdefault('RESTLIB_OAUTH2_RESOURCE_OWNER_GRANT', True)
         app.config.setdefault('RESTLIB_OAUTH2_CLIENT_CREDENTIALS_GRANT', True)
         app.config.setdefault('RESTLIB_OAUTH2_REFRESH_TOKEN_GRANT', True)
+        app.config.setdefault('RESTLIB_OAUTH2_INTROSPECTION_TOKEN_DISABLE', False)
 
         if app.config['RESTLIB_OAUTH2_REFRESH_TOKEN_GRANT']:
             app.config.setdefault('OAUTH2_REFRESH_TOKEN_GENERATOR', True)
@@ -334,6 +338,11 @@ class AuthorizationServer(_AuthorizationServer):
         self.bp.add_url_rule('/authorize', view_func=self.authorize_endpoint)
         self.bp.add_url_rule('/token', view_func=self.access_token_endpoint)
         self.bp.add_url_rule('/revoke', view_func=self.revoke_token_endpoint)
+
+        if not app.config['RESTLIB_OAUTH2_INTROSPECTION_TOKEN_DISABLE']:
+            self.register_endpoint(views.IntrospectionEndpoint)
+            self.bp.add_url_rule('/introspect', view_func=self.introspection_token_endpoint)
+
         app.register_blueprint(self.bp, url_prefix=app.config['RESTLIB_OAUTH2_URL_PREFIX'])
 
     def _load_user(self, user_id: t.Any) -> t.Optional[UserMixin]:

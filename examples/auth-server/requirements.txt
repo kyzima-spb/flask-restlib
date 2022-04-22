@@ -28,8 +28,7 @@ prompt-toolkit==1.0.14
 pycparser==2.21
 Pygments==2.11.2
 PyInquirer==1.0.3
-pymongo==4.1.0
-PyMySQL==1.0.2
+pymongo==4.1.1
 pyparsing==3.0.8
 regex==2022.3.15
 six==1.16.0

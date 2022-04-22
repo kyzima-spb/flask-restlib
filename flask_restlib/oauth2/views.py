@@ -3,8 +3,10 @@ import typing as t
 from urllib.parse import urlparse
 
 from authlib.oauth2 import OAuth2Error
+from authlib.oauth2.rfc6749.token_endpoint import TokenEndpoint
 from authlib.oauth2.rfc6749.wrappers import OAuth2Request
 from authlib.oauth2.rfc7009 import RevocationEndpoint
+from authlib.oauth2.rfc7662 import IntrospectionEndpoint as AbstractIntrospectionEndpoint
 from flask import (
     abort,
     current_app,
@@ -25,7 +27,7 @@ from flask_wtf import FlaskForm
 from flask_wtf.csrf import validate_csrf
 from wtforms.validators import ValidationError
 
-from .mixins import TokenMixin
+from .mixins import ClientMixin, TokenMixin
 from ..forms import LoginForm
 from ..globals import (
     authorization_server,
@@ -41,9 +43,28 @@ __all__ = (
     'IndexView',
     'LoginView',
     'LogoutView',
+    'IntrospectionEndpoint',
+    'IntrospectionTokenView',
     'RevokeTokenEndpoint',
     'RevokeTokenView',
 )
+
+
+def query_token(token_string: str, token_type_hint: str) -> t.Optional[TokenMixin]:
+    """Returns the token from persistent storage by the given token string."""
+    current_app.logger.debug(f'Query token: {token_string}, type hint: {token_type_hint}')
+
+    model = authorization_server.OAuth2Token
+    q = query_adapter(model)
+
+    if token_type_hint:
+        return q.filter_by(**{token_type_hint: token_string}).first()
+
+    current_app.logger.debug(f'Supported token types: {TokenEndpoint.SUPPORTED_TOKEN_TYPES}')
+
+    qs = (Q(model.access_token) == token_string) | (Q(model.refresh_token) == token_string)
+
+    return q.filter(qs).first()
 
 
 class AccessTokenView(MethodView):
@@ -154,25 +175,43 @@ class LogoutView(MethodView):
         return redirect(redirect_url)
 
 
-class RevokeTokenEndpoint(RevocationEndpoint):
-    def query_token(
+class IntrospectionEndpoint(AbstractIntrospectionEndpoint):
+    def query_token(self, token_string: str, token_type_hint: str) -> t.Optional[TokenMixin]:
+        return query_token(token_string, token_type_hint)
+
+    def introspect_token(self, token: TokenMixin) -> dict[str, t.Any]:
+        return {
+            'active': True,
+            'scope': token.get_scope(),
+            'client_id': token.get_client().get_client_id(),
+            # 'username': get_token_username(token),
+            'token_type': token.get_token_type(),
+            'exp': token.get_expires_at(),
+            'iat': token.get_issued_at(),
+            # 'sub': get_token_user_sub(token),
+            # 'iss': 'https://server.example.com/',
+        }
+
+    def check_permission(
         self,
-        token: str,
-        token_type_hint: str,
-    ) -> t.Optional[TokenMixin]:
-        current_app.logger.debug(f'Revocation token: {token}, type hint: {token_type_hint}')
+        token: TokenMixin,
+        client: ClientMixin,
+        request: OAuth2Request
+    ) -> bool:
+        return token.check_client(client)
 
-        q = query_adapter(authorization_server.OAuth2Token)
 
-        if token_type_hint:
-            return q.filter_by(**{token_type_hint: token}).first()
+class IntrospectionTokenView(MethodView):
+    """Introspection a previously issued token."""
+    def post(self) -> ResponseReturnValue:
+        return authorization_server.create_endpoint_response(
+            IntrospectionEndpoint.ENDPOINT_NAME
+        )
 
-        # without token_type_hint
-        current_app.logger.debug(f'Supported token types: {self.SUPPORTED_TOKEN_TYPES}')
 
-        token_model = authorization_server.OAuth2Token
-        qs = (Q(token_model.access_token) == token) | (Q(token_model.refresh_token) == token)
-        return q.filter(qs).first()
+class RevokeTokenEndpoint(RevocationEndpoint):
+    def query_token(self, token_string: str, token_type_hint: str) -> t.Optional[TokenMixin]:
+        return query_token(token_string, token_type_hint)
 
     def revoke_token(self, token: TokenMixin, request: OAuth2Request) -> None:
         hint = request.form.get('token_type_hint')

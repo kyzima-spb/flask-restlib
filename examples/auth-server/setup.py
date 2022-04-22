@@ -13,8 +13,7 @@ setup(
     install_requires=[
         'Flask>=2',
         'Flask-Bcrypt>=0.7',
-        # 'flask-restlib[sqla]>=0.1',
-        'PyMySQL>=0.10',
+        'flask-restlib[mongoengine]',
     ],
     classifiers=[
         'Environment :: Web Environment',

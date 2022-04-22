@@ -338,6 +338,11 @@ class TokenMixin(_TokenMixin):
         return self.get_client().get_client_id() == client.get_client_id()
 
     @getattr_or_implement
+    def get_access_token(self) -> str:
+        """Returns access token string."""
+        return getattr(self, 'access_token')
+
+    @getattr_or_implement
     def get_access_token_revoked_at(self) -> int:
         return getattr(self, 'access_token_revoked_at')
 
@@ -345,6 +350,10 @@ class TokenMixin(_TokenMixin):
     def get_client(self) -> ClientMixin:
         """Returns the client to which the token was issued."""
         return getattr(self, 'client')
+
+    def get_expires_at(self) -> int:
+        """Returns timestamp indicating when this token will expire."""
+        return self.get_issued_at() + self.get_expires_in()
 
     @getattr_or_implement
     def get_expires_in(self) -> int:
@@ -355,8 +364,26 @@ class TokenMixin(_TokenMixin):
         return getattr(self, 'issued_at')
 
     @getattr_or_implement
+    def get_refresh_token(self) -> str:
+        """Returns refresh token string."""
+        return getattr(self, 'refresh_token')
+
+    @getattr_or_implement
+    def get_refresh_token_revoked_at(self) -> int:
+        return getattr(self, 'refresh_token_revoked_at')
+
+    @getattr_or_implement
     def get_scope(self) -> str:
         return getattr(self, 'scope')
+
+    @getattr_or_implement
+    def get_token_type(self) -> str:
+        """
+        Returns access token type.
+
+        .. https://datatracker.ietf.org/doc/html/rfc6749#section-7.1
+        """
+        return getattr(self, 'token_type')
 
     @getattr_or_implement
     def get_user(self) -> UserMixin:
@@ -366,14 +393,7 @@ class TokenMixin(_TokenMixin):
     def is_expired(self) -> bool:
         if not self.get_expires_in():
             return True
-        expired_at = datetime.fromtimestamp(
-            self.get_issued_at() + self.get_expires_in()
-        )
-        return expired_at < datetime.utcnow()
-
-    @getattr_or_implement
-    def get_refresh_token_revoked_at(self) -> int:
-        return getattr(self, 'refresh_token_revoked_at')
+        return self.get_expires_at() < time.time()
 
     def is_refresh_token_valid(self) -> bool:
         """Returns true if the token is not expired, false otherwise."""

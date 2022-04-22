@@ -351,6 +351,12 @@ OAuth 2.0 не определяет каких-либо конкретных з�
          -F token=fbZnda6CsQc0F6gOSKrybQwGnbhugRY05Pxr9A0eXf \
          -F token_type_hint=access_token
 
+    # Token Introspection
+    curl -u test:test \
+        -XPOST http://example.com/oauth/introspect \
+        -F token=fbZnda6CsQc0F6gOSKrybQwGnbhugRY05Pxr9A0eXf \
+        -F token_type_hint=access_token
+
 
 ScopeMixin
 ~~~~~~~~~~
