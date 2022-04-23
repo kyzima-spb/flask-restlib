@@ -6,35 +6,39 @@ volumes:
 services:
   backend:
     build:
-      context: ./
+      context: ./resource-server
     ports:
-      - 8080:5000
+      - 5001:5000
     environment:
-      FLASK_APP: "todo:create_app()"
-#      FLASK_ENV: development
+      FLASK_APP: "resource_server:create_app()"
+      FLASK_ENV: development
       PYTHONUNBUFFERED: 1
+      AUTHLIB_INSECURE_TRANSPORT: 1
     volumes:
-      - ./instance:/app/instance
+#      - ./resource-server:/app
+      - ../../flask_restlib:/python_packages/flask_restlib:ro
     depends_on:
       - db
     restart: unless-stopped
+
   db:
     image: mongo
     environment:
-      MONGO_INITDB_ROOT_USERNAME: root
-      MONGO_INITDB_ROOT_PASSWORD: toor
+      MONGO_INITDB_ROOT_USERNAME: user
+      MONGO_INITDB_ROOT_PASSWORD: demo
       MONGO_INITDB_DATABASE: todo
     volumes:
       - dbdata:/data/db
     restart: unless-stopped
+
   mongo-express:
     image: mongo-express
     ports:
-      - 8081:8081
+      - 8082:8081
     environment:
-      ME_CONFIG_MONGODB_ADMINUSERNAME: root
-      ME_CONFIG_MONGODB_ADMINPASSWORD: toor
-      ME_CONFIG_MONGODB_URL: mongodb://root:toor@db:27017/
+      ME_CONFIG_MONGODB_SERVER: db
+      ME_CONFIG_MONGODB_ADMINUSERNAME: user
+      ME_CONFIG_MONGODB_ADMINPASSWORD: demo
     depends_on:
       - db
     restart: unless-stopped
