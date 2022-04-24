@@ -1,0 +1,16 @@
+version: "3.7"
+
+services:
+  auth:
+    environment:
+      FLASK_ENV: development
+    volumes:
+      - ./auth-server:/app
+      - ../../flask_restlib:/python_packages/flask_restlib:ro
+
+  api:
+    environment:
+      FLASK_ENV: development
+    volumes:
+      - ./resource-server:/app
+      - ../../flask_restlib:/python_packages/flask_restlib:ro
